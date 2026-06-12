@@ -65,7 +65,7 @@ export default function VeiculoDetalhe() {
   }
 
   const handleDelete = () => setShowDeleteModal(true)
-  const confirmDelete = () => { deleteVeiculo(v.id); navigate('/estoque') }
+  const confirmDelete = async () => { await deleteVeiculo(v.id); navigate('/estoque') }
 
   const clienteVenda = v.venda?.cliente
   const clienteCadastrado = clientes.find(c => c.cpf === clienteVenda?.cpf)
@@ -369,10 +369,10 @@ function VendaTab({ v, updateVeiculo, clientes, addCliente, updateCliente, vende
     e.target.value = ''
   }
 
-  const salvVenda = () => {
+  const salvVenda = async () => {
     if (!venda.vendedor || !venda.valorVenda) { onSaved?.('Preencha vendedor e valor de venda.', true); return }
     const updated = { ...v, venda, status: 'vendido' as const }
-    updateVeiculo(updated)
+    await updateVeiculo(updated)
 
     // Sincroniza cliente
     const cli = venda.cliente
@@ -381,10 +381,10 @@ function VendaTab({ v, updateVeiculo, clientes, addCliente, updateCliente, vende
       if (existing) {
         const jaTemVeiculo = existing.veiculosComprados.includes(v.id)
         if (!jaTemVeiculo) {
-          updateCliente({ ...existing, veiculosComprados: [...existing.veiculosComprados, v.id] })
+          await updateCliente({ ...existing, veiculosComprados: [...existing.veiculosComprados, v.id] })
         }
       } else {
-        addCliente({
+        await addCliente({
           id: uuid(),
           nome: cli.nome,
           cpf: cli.cpf,

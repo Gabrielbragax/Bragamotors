@@ -100,14 +100,14 @@ export default function VeiculoForm() {
   const custoPrep = (form.servicosPreparacao || []).reduce((a, s) => a + Number(s.valor), 0)
   const custoTotal = Number(form.valorPago || 0) + custoPrep
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.placa || !form.marca || !form.modelo) {
       alert('Preencha ao menos Placa, Marca e Modelo.')
       return
     }
     const veiculo = { ...form, id: existing?.id || uuid() } as Veiculo
-    if (existing) updateVeiculo(veiculo)
-    else addVeiculo(veiculo)
+    if (existing) await updateVeiculo(veiculo)
+    else await addVeiculo(veiculo)
     navigate('/estoque')
   }
 

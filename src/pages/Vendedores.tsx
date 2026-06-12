@@ -36,16 +36,16 @@ export default function Vendedores() {
     ...nomesNaoCadastrados.map(n => ({ id: n, nome: n, ativo: true } as Vendedor)),
   ]
 
-  const salvarVendedor = () => {
+  const salvarVendedor = async () => {
     if (!nomeNovo.trim()) return
-    addVendedor({ id: uuid(), nome: nomeNovo.trim(), ativo: true })
+    await addVendedor({ id: uuid(), nome: nomeNovo.trim(), ativo: true })
     setNomeNovo('')
     setShowModal(false)
   }
 
-  const toggleAtivo = (vend: Vendedor) => {
+  const toggleAtivo = async (vend: Vendedor) => {
     const cadastrado = vendedores.find(x => x.id === vend.id)
-    if (cadastrado) updateVendedor({ ...cadastrado, ativo: !cadastrado.ativo })
+    if (cadastrado) await updateVendedor({ ...cadastrado, ativo: !cadastrado.ativo })
   }
 
   const anos = [now.getFullYear(), now.getFullYear() - 1, now.getFullYear() - 2]

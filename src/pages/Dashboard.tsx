@@ -77,8 +77,8 @@ export default function Dashboard() {
   const pctQtd = metaAtual?.metaQuantidade ? Math.min(100, (vendidosMes.length / metaAtual.metaQuantidade) * 100) : 0
   const pctFat = metaAtual?.metaFaturamento ? Math.min(100, (faturamentoMes / metaAtual.metaFaturamento) * 100) : 0
 
-  const salvarMeta = () => {
-    upsertMeta({ ano: anoAtual, mes: mesAtual, metaQuantidade: metaQtd, metaFaturamento: metaFat })
+  const salvarMeta = async () => {
+    await upsertMeta({ ano: anoAtual, mes: mesAtual, metaQuantidade: metaQtd, metaFaturamento: metaFat })
     setEditandoMeta(false)
   }
 

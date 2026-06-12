@@ -46,11 +46,11 @@ export default function Relatorios() {
     setShowForm(true)
   }
 
-  const salvar = () => {
+  const salvar = async () => {
     if (!editando) return
     const existe = relatorios.find(r => r.id === editando.id)
-    if (existe) updateRelatorio(editando)
-    else addRelatorio(editando)
+    if (existe) await updateRelatorio(editando)
+    else await addRelatorio(editando)
     setShowForm(false)
     setEditando(null)
   }
@@ -194,7 +194,7 @@ export default function Relatorios() {
             <div className="text-sm text-slate-500">Esta ação não pode ser desfeita.</div>
             <div className="flex gap-3 justify-end">
               <button onClick={() => setDeletando(null)} className="px-4 py-2 rounded-lg border border-slate-200 text-sm text-slate-600">Cancelar</button>
-              <button onClick={() => { deleteRelatorio(deletando); setDeletando(null) }} className="px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-semibold">Excluir</button>
+              <button onClick={async () => { await deleteRelatorio(deletando!); setDeletando(null) }} className="px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-semibold">Excluir</button>
             </div>
           </div>
         </div>

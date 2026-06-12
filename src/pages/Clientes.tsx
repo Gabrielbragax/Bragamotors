@@ -19,10 +19,10 @@ export default function Clientes() {
   const openEditar = (c: Cliente) => { setForm(c); setModal(c) }
   const set = (k: keyof Cliente, v: unknown) => setForm(f => ({ ...f, [k]: v }))
 
-  const salvar = () => {
+  const salvar = async () => {
     if (!form.nome || !form.cpf) { alert('Preencha nome e CPF'); return }
-    if (modal === 'novo') addCliente({ ...form, id: uuid(), veiculosComprados: [] } as Cliente)
-    else updateCliente({ ...form, id: (modal as Cliente).id } as Cliente)
+    if (modal === 'novo') await addCliente({ ...form, id: uuid(), veiculosComprados: [] } as Cliente)
+    else await updateCliente({ ...form, id: (modal as Cliente).id } as Cliente)
     setModal(null)
   }
 
