@@ -1,0 +1,187 @@
+import { useState } from 'react'
+import { useStore } from '../store/useStore'
+import { Link } from 'react-router-dom'
+import { TrendingUp, Car, DollarSign, Filter } from 'lucide-react'
+
+const FORMA_LABELS: Record<string, string> = {
+  troca_financiamento: 'Troca + Financ.',
+  entrada_financiamento: 'Entrada + Financ.',
+  financiamento: 'Só Financiamento',
+  avista: 'À Vista',
+  entrada_boleto: 'Entrada + Boleto',
+  troca_boleto: 'Troca + Boleto',
+  misto: 'Misto',
+}
+
+const MESES_CURTOS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
+
+export default function Vendas() {
+  const veiculos = useStore(s => s.veiculos)
+  const now = new Date()
+  const [filtroTipo, setFiltroTipo] = useState<'mes' | 'ano' | 'total'>('mes')
+  const [anoSel, setAnoSel] = useState(now.getFullYear())
+  const [mesSel, setMesSel] = useState(now.getMonth())
+  const [vendedorSel, setVendedorSel] = useState('todos')
+
+  const todos = veiculos.filter(v => v.status === 'vendido' && v.venda)
+    .sort((a, b) => new Date(b.venda!.dataVenda).getTime() - new Date(a.venda!.dataVenda).getTime())
+
+  const nomesVendedores = [...new Set(todos.map(v => v.venda!.vendedor).filter(Boolean))]
+
+  const filtrados = todos.filter(v => {
+    const d = new Date(v.venda!.dataVenda)
+    const matchPeriodo =
+      filtroTipo === 'total' ? true :
+      filtroTipo === 'ano' ? d.getFullYear() === anoSel :
+      d.getFullYear() === anoSel && d.getMonth() === mesSel
+    const matchVendedor = vendedorSel === 'todos' || v.venda!.vendedor === vendedorSel
+    return matchPeriodo && matchVendedor
+  })
+
+  const totalFaturamento = filtrados.reduce((a, v) => a + (v.venda?.valorVenda || 0), 0)
+  const totalLucro = filtrados.reduce((a, v) => {
+    const cp = v.servicosPreparacao.reduce((x, s) => x + s.valor, 0)
+    return a + (v.venda?.valorVenda || 0) - v.valorPago - cp
+  }, 0)
+
+  const periodoLabel =
+    filtroTipo === 'mes' ? `${MESES_CURTOS[mesSel]}/${anoSel}` :
+    filtroTipo === 'ano' ? String(anoSel) : 'Todos os tempos'
+
+  const anos = [now.getFullYear(), now.getFullYear() - 1, now.getFullYear() - 2]
+
+  return (
+    <div className="space-y-4">
+      <h1 className="text-2xl font-bold text-slate-800">Vendas</h1>
+
+      {/* Filtros */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-3">
+        <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
+          <Filter size={15} /> Filtros
+        </div>
+        <div className="flex flex-wrap gap-3 items-center">
+          {/* Tipo */}
+          <div className="flex bg-slate-100 rounded-lg p-1 gap-1">
+            {([['mes','Por Mês'],['ano','Por Ano'],['total','Total']] as const).map(([k,l]) => (
+              <button key={k} onClick={() => setFiltroTipo(k)}
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${filtroTipo === k ? 'bg-blue-600 text-white' : 'text-slate-600 hover:text-slate-800'}`}>
+                {l}
+              </button>
+            ))}
+          </div>
+
+          {/* Ano */}
+          {filtroTipo !== 'total' && (
+            <div className="flex gap-1">
+              {anos.map(a => (
+                <button key={a} onClick={() => setAnoSel(a)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${anoSel === a ? 'bg-slate-800 text-white border-slate-800' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                  {a}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Mês */}
+          {filtroTipo === 'mes' && (
+            <div className="flex flex-wrap gap-1">
+              {MESES_CURTOS.map((m, i) => (
+                <button key={i} onClick={() => setMesSel(i)}
+                  className={`px-2 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${mesSel === i ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                  {m}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Vendedor */}
+          {nomesVendedores.length > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-400">Vendedor:</span>
+              <select
+                className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+                value={vendedorSel}
+                onChange={e => setVendedorSel(e.target.value)}
+              >
+                <option value="todos">Todos</option>
+                {nomesVendedores.map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </div>
+          )}
+        </div>
+        <div className="text-xs text-slate-500">Exibindo: <span className="font-semibold text-blue-600">{periodoLabel}</span> — {filtrados.length} venda{filtrados.length !== 1 ? 's' : ''}</div>
+      </div>
+
+      {/* Cards resumo */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
+          <div className="flex items-center gap-2 mb-1"><Car className="text-blue-500" size={18} /><span className="text-xs font-semibold text-slate-500">Vendas no período</span></div>
+          <div className="text-2xl font-bold text-slate-800">{filtrados.length}</div>
+        </div>
+        <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
+          <div className="flex items-center gap-2 mb-1"><DollarSign className="text-green-500" size={18} /><span className="text-xs font-semibold text-slate-500">Faturamento</span></div>
+          <div className="text-2xl font-bold text-slate-800">R$ {totalFaturamento.toLocaleString('pt-BR')}</div>
+        </div>
+        <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
+          <div className="flex items-center gap-2 mb-1"><TrendingUp className="text-emerald-500" size={18} /><span className="text-xs font-semibold text-slate-500">Lucro líquido</span></div>
+          <div className={`text-2xl font-bold ${totalLucro >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>R$ {totalLucro.toLocaleString('pt-BR')}</div>
+        </div>
+      </div>
+
+      {filtrados.length === 0 ? (
+        <div className="bg-white rounded-xl p-12 text-center border border-slate-200 text-slate-400 text-sm">Nenhuma venda no período</div>
+      ) : (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  {['Data','Veículo','Vendedor','Forma','Venda','Custo','Lucro Bruto','Lucro Líq.','%'].map(h => (
+                    <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {filtrados.map(v => {
+                  const cp = v.servicosPreparacao.reduce((a, s) => a + s.valor, 0)
+                  const custo = v.valorPago + cp
+                  const lb = v.venda!.valorVenda - v.valorPago
+                  const ll = v.venda!.valorVenda - custo
+                  const pct = (ll / v.venda!.valorVenda) * 100
+                  return (
+                    <tr key={v.id} className="hover:bg-slate-50">
+                      <td className="px-4 py-3 text-slate-500 whitespace-nowrap">
+                        {new Date(v.venda!.dataVenda).toLocaleDateString('pt-BR')}
+                      </td>
+                      <td className="px-4 py-3">
+                        <Link to={`/estoque/${v.id}`} className="font-medium text-blue-600 hover:underline">
+                          {v.marca} {v.modelo}{v.versao ? ` ${v.versao}` : ''} {v.ano}
+                        </Link>
+                        <div className="text-xs text-slate-400">{v.placa}</div>
+                      </td>
+                      <td className="px-4 py-3 text-slate-600">{v.venda!.vendedor || '-'}</td>
+                      <td className="px-4 py-3">
+                        <span className="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full whitespace-nowrap">
+                          {FORMA_LABELS[v.venda!.formaPagamento] || v.venda!.formaPagamento}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">R$ {v.venda!.valorVenda.toLocaleString('pt-BR')}</td>
+                      <td className="px-4 py-3 text-slate-500 whitespace-nowrap">R$ {custo.toLocaleString('pt-BR')}</td>
+                      <td className={`px-4 py-3 font-semibold whitespace-nowrap ${lb >= 0 ? 'text-green-600' : 'text-red-600'}`}>R$ {lb.toLocaleString('pt-BR')}</td>
+                      <td className={`px-4 py-3 font-bold whitespace-nowrap ${ll >= 0 ? 'text-green-600' : 'text-red-600'}`}>R$ {ll.toLocaleString('pt-BR')}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${pct >= 10 ? 'bg-green-100 text-green-700' : pct >= 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                          {pct.toFixed(1)}%
+                        </span>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
