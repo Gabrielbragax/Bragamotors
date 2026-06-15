@@ -39,7 +39,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <aside className="hidden lg:flex flex-col w-60 shrink-0 text-white" style={{ background: '#0a0a0a' }}>
         <div className="px-5 py-4 border-b" style={{ borderColor: '#222' }}>
           <div className="flex items-center gap-3">
-            <img src="/logo.svg" alt="BragaMotors" className="w-10 h-10 rounded-lg" />
+            <img src="/logo.png" alt="BragaMotors" className="w-10 h-10 rounded-lg" />
             <div>
               <div className="font-bold text-base leading-tight text-white">BragaMotors</div>
               <div className="text-xs" style={{ color: '#888' }}>Sistema de Gestão</div>
@@ -94,7 +94,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {/* Mobile header */}
       <div className="lg:hidden fixed top-0 left-0 right-0 z-50 text-white px-4 py-3 flex items-center justify-between" style={{ background: '#0a0a0a' }}>
         <div className="flex items-center gap-2">
-          <img src="/logo.svg" alt="BragaMotors" className="w-8 h-8 rounded-md" />
+          <img src="/logo.png" alt="BragaMotors" className="w-8 h-8 rounded-md" />
           <span className="font-bold text-white">BragaMotors</span>
         </div>
         <button onClick={() => setOpen(!open)} className="text-white">
