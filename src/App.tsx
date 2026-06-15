@@ -12,6 +12,7 @@ import Marketing from './pages/Marketing'
 import Vendedores from './pages/Vendedores'
 import EstoqueImprimir from './pages/EstoqueImprimir'
 import Relatorios from './pages/Relatorios'
+import Pesquisa from './pages/Pesquisa'
 import { useStore } from './store/useStore'
 import { Car } from 'lucide-react'
 
@@ -51,6 +52,7 @@ function AppContent() {
           <Route path="/boletos" element={<Boletos />} />
           <Route path="/marketing" element={<Marketing />} />
           <Route path="/relatorios" element={<Relatorios />} />
+          <Route path="/pesquisa" element={<Pesquisa />} />
         </Routes>
       </Layout>
     </BrowserRouter>

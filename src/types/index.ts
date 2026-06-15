@@ -127,6 +127,29 @@ export interface MetaMensal {
   metaFaturamento: number
 }
 
+export type InteressePesquisa = 'pendente' | 'interesse' | 'sem_interesse'
+
+export interface VeiculoPesquisa {
+  id: string
+  marca: string
+  modelo: string
+  ano: number
+  km: number
+  valor: number
+  cidade: string
+  portal: string
+  link: string
+  interesse: InteressePesquisa
+  observacoes?: string
+}
+
+export interface SessaoPesquisa {
+  id: string
+  data: string
+  titulo?: string
+  veiculos: VeiculoPesquisa[]
+}
+
 export type StatusLead = 'agendou_visita' | 'nao_respondeu' | 'desistiu' | 'em_negociacao' | 'fechou'
 
 export interface LeadAtendimento {

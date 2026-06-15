@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { supabase } from '../lib/supabase'
-import type { Veiculo, Cliente, Vendedor, MetaMensal, RelatorioDiario } from '../types'
+import type { Veiculo, Cliente, Vendedor, MetaMensal, RelatorioDiario, SessaoPesquisa } from '../types'
 
 interface Store {
   veiculos: Veiculo[]
@@ -8,6 +8,7 @@ interface Store {
   vendedores: Vendedor[]
   metas: MetaMensal[]
   relatorios: RelatorioDiario[]
+  pesquisas: SessaoPesquisa[]
   loaded: boolean
 
   loadAll: () => Promise<void>
@@ -27,6 +28,10 @@ interface Store {
   addRelatorio: (r: RelatorioDiario) => Promise<void>
   updateRelatorio: (r: RelatorioDiario) => Promise<void>
   deleteRelatorio: (id: string) => Promise<void>
+
+  addPesquisa: (s: SessaoPesquisa) => Promise<void>
+  updatePesquisa: (s: SessaoPesquisa) => Promise<void>
+  deletePesquisa: (id: string) => Promise<void>
 }
 
 async function fetchTable<T>(table: string): Promise<T[]> {
@@ -51,17 +56,19 @@ export const useStore = create<Store>((set) => ({
   vendedores: [],
   metas: [],
   relatorios: [],
+  pesquisas: [],
   loaded: false,
 
   loadAll: async () => {
-    const [veiculos, clientes, vendedores, metas, relatorios] = await Promise.all([
+    const [veiculos, clientes, vendedores, metas, relatorios, pesquisas] = await Promise.all([
       fetchTable<Veiculo>('veiculos'),
       fetchTable<Cliente>('clientes'),
       fetchTable<Vendedor>('vendedores'),
       fetchTable<MetaMensal>('metas'),
       fetchTable<RelatorioDiario>('relatorios'),
+      fetchTable<SessaoPesquisa>('pesquisas'),
     ])
-    set({ veiculos, clientes, vendedores, metas, relatorios, loaded: true })
+    set({ veiculos, clientes, vendedores, metas, relatorios, pesquisas, loaded: true })
   },
 
   addVeiculo: async (v) => {
@@ -119,5 +126,18 @@ export const useStore = create<Store>((set) => ({
   deleteRelatorio: async (id) => {
     set(s => ({ relatorios: s.relatorios.filter(x => x.id !== id) }))
     await deleteRow('relatorios', id)
+  },
+
+  addPesquisa: async (s) => {
+    set(st => ({ pesquisas: [s, ...st.pesquisas] }))
+    await upsertRow('pesquisas', s.id, s)
+  },
+  updatePesquisa: async (s) => {
+    set(st => ({ pesquisas: st.pesquisas.map(x => x.id === s.id ? s : x) }))
+    await upsertRow('pesquisas', s.id, s)
+  },
+  deletePesquisa: async (id) => {
+    set(st => ({ pesquisas: st.pesquisas.filter(x => x.id !== id) }))
+    await deleteRow('pesquisas', id)
   },
 }))
