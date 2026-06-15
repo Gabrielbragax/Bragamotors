@@ -1,7 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 220">
   <rect width="220" height="220" fill="#000"/>
-  <polygon points="28,180 52,40 70,40 46,180" fill="#009246"/>
-  <polygon points="58,180 82,40 100,40 76,180" fill="#ffffff"/>
-  <polygon points="88,180 112,40 130,40 106,180" fill="#CE2B37"/>
+  <!-- Diagonal stripes (skewed) -->
+  <g>
+    <polygon points="28,180 52,40 70,40 46,180" fill="#009246"/>
+    <polygon points="58,180 82,40 100,40 76,180" fill="#ffffff"/>
+    <polygon points="88,180 112,40 130,40 106,180" fill="#CE2B37"/>
+  </g>
+  <!-- Bold italic B -->
   <text x="108" y="168" font-family="Arial Black,Impact,sans-serif" font-weight="900" font-size="130" fill="#ffffff" font-style="italic" letter-spacing="-4">B</text>
 </svg>
