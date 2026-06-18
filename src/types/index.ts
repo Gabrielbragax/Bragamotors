@@ -3,6 +3,7 @@ export type AquisicaoType = 'troca' | 'portal_online' | 'porta_loja' | 'repasse'
 export type VeiculoStatus = 'preparacao' | 'estoque' | 'vendido'
 export type TipoServico = 'funilaria' | 'mecanica' | 'estetica' | 'eletrica' | 'outros'
 export type FormaPagamento = 'troca_financiamento' | 'entrada_financiamento' | 'financiamento' | 'avista' | 'entrada_boleto' | 'troca_boleto' | 'misto'
+export type FormaPgto = 'financiamento' | 'troca' | 'avista' | 'entrada' | 'boleto' | 'cartao'
 
 export interface ServicoPreparacao {
   id: string
@@ -47,6 +48,12 @@ export interface VeiculoTroca {
   valorAvaliado: number
 }
 
+export interface CartaoCredito {
+  bandeira: string
+  numeroParcelas: number
+  valorTotal: number
+}
+
 export interface ClienteVenda {
   nome: string
   cpf: string
@@ -58,11 +65,13 @@ export interface Venda {
   vendedor: string
   dataVenda: string
   formaPagamento: FormaPagamento
+  formasPagamento?: FormaPgto[]
   valorVenda: number
   cliente?: ClienteVenda
   veiculoTroca?: VeiculoTroca
   valorEntrada?: number
   financiamento?: Financiamento
+  cartaoCredito?: CartaoCredito
   boletos?: Boleto[]
   observacoes?: string
   contratoArquivo?: string
