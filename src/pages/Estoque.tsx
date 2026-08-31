@@ -110,9 +110,9 @@ export default function Estoque() {
       ) : (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           {filtrados.map((v, idx) => {
-            const dias = differenceInDays(new Date(), new Date(v.dataEntrada))
+            const diasTotal = differenceInDays(new Date(), new Date(v.dataEntrada))
             const custoPrep = v.servicosPreparacao.reduce((a, s) => a + s.valor, 0)
-            const custoTotal = v.valorPago + custoPrep
+            const custoTotal = v.valorPago + custoPrep + (v.trafegoPago || 0)
             const lucro = v.venda ? v.venda.valorVenda - custoTotal : null
             return (
               <Link
@@ -140,8 +140,8 @@ export default function Estoque() {
                 </div>
 
                 {/* Placa */}
-                <div className="text-xs font-mono font-bold text-slate-600 bg-slate-100 px-2 py-1 rounded shrink-0 hidden sm:block">
-                  {v.placa}
+                <div className="shrink-0 border-2 border-slate-800 rounded-md px-2 py-0.5 text-center" style={{ minWidth: 72 }}>
+                  <div className="text-xs font-black font-mono tracking-widest text-slate-900 leading-tight">{v.placa}</div>
                 </div>
 
                 {/* Status */}
@@ -149,19 +149,29 @@ export default function Estoque() {
                   {statusLabel[v.status]}
                 </span>
 
-                {/* Preços */}
-                {v.status !== 'vendido' && (v.precoAvista || v.precoTroca) && (
-                  <div className="flex gap-2 shrink-0 hidden lg:flex">
+                {/* Custo + Preços + Lucro potencial */}
+                {v.status !== 'vendido' && (
+                  <div className="shrink-0 hidden lg:flex gap-4">
+                    <div className="text-right">
+                      <div className="text-xs text-slate-400">Custo Total</div>
+                      <div className="text-sm font-bold text-slate-600">R$ {custoTotal.toLocaleString('pt-BR')}</div>
+                    </div>
                     {v.precoAvista ? (
-                      <div className="text-right">
+                      <div className="text-right border-l border-slate-100 pl-4">
                         <div className="text-xs text-slate-400">À Vista</div>
                         <div className="text-sm font-bold text-green-700">R$ {v.precoAvista.toLocaleString('pt-BR')}</div>
+                        <div className={`text-xs font-semibold ${v.precoAvista - custoTotal >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                          {v.precoAvista - custoTotal >= 0 ? '+' : ''}R$ {(v.precoAvista - custoTotal).toLocaleString('pt-BR')}
+                        </div>
                       </div>
                     ) : null}
                     {v.precoTroca ? (
-                      <div className="text-right ml-3">
+                      <div className="text-right border-l border-slate-100 pl-4">
                         <div className="text-xs text-slate-400">Troca</div>
                         <div className="text-sm font-bold text-amber-700">R$ {v.precoTroca.toLocaleString('pt-BR')}</div>
+                        <div className={`text-xs font-semibold ${v.precoTroca - custoTotal >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                          {v.precoTroca - custoTotal >= 0 ? '+' : ''}R$ {(v.precoTroca - custoTotal).toLocaleString('pt-BR')}
+                        </div>
                       </div>
                     ) : null}
                   </div>
@@ -171,12 +181,12 @@ export default function Estoque() {
                 <div className="shrink-0 text-right">
                   {v.status !== 'vendido' ? (
                     <div className={`flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full ${
-                      dias > 90 ? 'bg-red-100 text-red-700' :
-                      dias > 45 ? 'bg-orange-100 text-orange-700' :
+                      diasTotal > 90 ? 'bg-red-100 text-red-700' :
+                      diasTotal > 45 ? 'bg-orange-100 text-orange-700' :
                       'bg-green-100 text-green-700'
                     }`}>
                       <Clock size={10} />
-                      {dias}d
+                      {diasTotal}d
                     </div>
                   ) : lucro !== null ? (
                     <div>

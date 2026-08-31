@@ -27,7 +27,7 @@ export default function Dashboard() {
 
   const totalCustoEstoque = emEstoque.reduce((acc, v) => {
     const cp = v.servicosPreparacao.reduce((a, s) => a + s.valor, 0)
-    return acc + v.valorPago + cp
+    return acc + v.valorPago + cp + (v.trafegoPago || 0)
   }, 0)
 
   const vendidosMes = vendidos.filter(v => {
@@ -36,10 +36,14 @@ export default function Dashboard() {
     return d.getMonth() === mesAtual && d.getFullYear() === anoAtual
   })
 
-  const faturamentoMes = vendidosMes.reduce((acc, v) => acc + (v.venda?.valorVenda || 0), 0)
+  const faturamentoMes = vendidosMes.reduce((acc, v) => {
+    const totalBoletos = (v.venda?.boletos || []).reduce((a, b) => a + b.valor, 0)
+    return acc + (v.venda?.valorVenda || 0) - totalBoletos
+  }, 0)
   const lucroMes = vendidosMes.reduce((acc, v) => {
     const cp = v.servicosPreparacao.reduce((a, s) => a + s.valor, 0)
-    return acc + (v.venda?.valorVenda || 0) - v.valorPago - cp
+    const totalBoletos = (v.venda?.boletos || []).reduce((a, b) => a + b.valor, 0)
+    return acc + (v.venda?.valorVenda || 0) - totalBoletos - v.valorPago - cp - (v.trafegoPago || 0)
   }, 0)
 
   const veiculosMaisTempo = [...emEstoque, ...emPreparacao]
@@ -50,6 +54,27 @@ export default function Dashboard() {
   const boletosVencidos = veiculos.flatMap(v =>
     (v.venda?.boletos || []).filter(b => !b.pago && new Date(b.vencimento) < new Date())
   ).length
+
+  // Boletos pendentes (possível lucro) — todos os não pagos
+  const boletosPendentes = veiculos.flatMap(v => (v.venda?.boletos || []).filter(b => !b.pago))
+  const boletosPendentesValor = boletosPendentes.reduce((a, b) => a + b.valor, 0)
+
+  // Boletos pendentes que vencem NESTE mês
+  const boletosPendentesMes = veiculos.flatMap(v => (v.venda?.boletos || []).filter(b => {
+    if (b.pago) return false
+    const d = new Date(b.vencimento)
+    return d.getMonth() === mesAtual && d.getFullYear() === anoAtual
+  }))
+  const boletosPendentesMesValor = boletosPendentesMes.reduce((a, b) => a + b.valor, 0)
+
+  // Boletos pagos no mês atual
+  const boletosPagosMes = veiculos.flatMap(v => (v.venda?.boletos || []).filter(b => {
+    if (!b.pago) return false
+    const ref = b.dataPagamento || b.vencimento
+    const d = new Date(ref)
+    return d.getMonth() === mesAtual && d.getFullYear() === anoAtual
+  }))
+  const boletosPagosMesValor = boletosPagosMes.reduce((a, b) => a + b.valor, 0)
 
   // Ranking de vendedores do mês
   const rankingVendedores = (() => {
@@ -91,10 +116,10 @@ export default function Dashboard() {
 
       {/* Cards principais */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card icon={<Car className="text-blue-500" size={22} />} label="Em Estoque" value={emEstoque.length} bg="bg-blue-50" />
-        <Card icon={<Clock className="text-yellow-500" size={22} />} label="Em Preparação" value={emPreparacao.length} bg="bg-yellow-50" />
-        <Card icon={<CheckCircle className="text-green-500" size={22} />} label="Vendidos no mês" value={vendidosMes.length} bg="bg-green-50" />
-        <Card icon={<DollarSign className="text-purple-500" size={22} />} label="Custo do Estoque" value={totalCustoEstoque >= 1000 ? `R$ ${(totalCustoEstoque / 1000).toFixed(0)}k` : `R$ ${totalCustoEstoque.toLocaleString('pt-BR')}`} bg="bg-purple-50" />
+        <Card icon={<Car className="text-blue-500" size={22} />} label="Em Estoque" value={emEstoque.length} bg="bg-blue-50" to="/estoque" />
+        <Card icon={<Clock className="text-yellow-500" size={22} />} label="Em Preparação" value={emPreparacao.length} bg="bg-yellow-50" to="/estoque" />
+        <Card icon={<CheckCircle className="text-green-500" size={22} />} label="Vendidos no mês" value={vendidosMes.length} bg="bg-green-50" to="/vendas" />
+        <Card icon={<DollarSign className="text-purple-500" size={22} />} label="Custo do Estoque" value={totalCustoEstoque >= 1000 ? `R$ ${(totalCustoEstoque / 1000).toFixed(0)}k` : `R$ ${totalCustoEstoque.toLocaleString('pt-BR')}`} bg="bg-purple-50" to="/estoque" />
       </div>
 
       {/* Metas do mês */}
@@ -178,15 +203,15 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="bg-green-50 rounded-xl p-4 border border-slate-200 shadow-sm">
+        <Link to="/vendas" className="bg-green-50 rounded-xl p-4 border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
           <div className="flex items-center gap-2 mb-1"><TrendingUp className="text-green-500" size={18} /><span className="text-xs font-semibold text-slate-600">Faturamento do Mês</span></div>
           <div className="text-xl font-bold text-slate-800">R$ {faturamentoMes.toLocaleString('pt-BR')}</div>
-        </div>
-        <div className="bg-emerald-50 rounded-xl p-4 border border-slate-200 shadow-sm">
+        </Link>
+        <Link to="/vendas" className="bg-emerald-50 rounded-xl p-4 border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
           <div className="flex items-center gap-2 mb-1"><TrendingUp className="text-emerald-500" size={18} /><span className="text-xs font-semibold text-slate-600">Lucro Líquido do Mês</span></div>
           <div className={`text-xl font-bold ${lucroMes >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>R$ {lucroMes.toLocaleString('pt-BR')}</div>
-        </div>
-        <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
+        </Link>
+        <Link to="/boletos" className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
           <div className="flex items-center gap-2 mb-3">
             <AlertCircle className="text-red-500" size={20} />
             <span className="text-sm font-semibold text-slate-700">Alertas de Boletos</span>
@@ -194,14 +219,42 @@ export default function Dashboard() {
           <div className="space-y-2">
             <div className="flex justify-between items-center">
               <span className="text-xs text-slate-500">Vencidos</span>
-              <Link to="/boletos" className="text-sm font-bold text-red-600 hover:underline">{boletosVencidos}</Link>
+              <span className="text-sm font-bold text-red-600">{boletosVencidos}</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-xs text-slate-500">Vencem hoje</span>
-              <Link to="/boletos" className="text-sm font-bold text-orange-500 hover:underline">{boletosHoje}</Link>
+              <span className="text-sm font-bold text-orange-500">{boletosHoje}</span>
             </div>
           </div>
-        </div>
+        </Link>
+      </div>
+
+      {/* Boletos — separado do lucro */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Link to="/boletos" className="bg-yellow-50 rounded-xl p-4 border border-yellow-200 shadow-sm hover:shadow-md transition-shadow">
+          <div className="flex items-center gap-2 mb-1">
+            <DollarSign className="text-yellow-500" size={18} />
+            <span className="text-xs font-semibold text-slate-600">Boletos Pendentes <span className="text-yellow-600 font-bold">(Possível Lucro)</span></span>
+          </div>
+          <div className="text-xl font-bold text-yellow-700">R$ {boletosPendentesValor.toLocaleString('pt-BR')}</div>
+          <div className="text-xs text-slate-400 mt-1">{boletosPendentes.length} boleto{boletosPendentes.length !== 1 ? 's' : ''} em aberto — não incluso no lucro</div>
+        </Link>
+        <Link to="/boletos" className="bg-orange-50 rounded-xl p-4 border border-orange-200 shadow-sm hover:shadow-md transition-shadow">
+          <div className="flex items-center gap-2 mb-1">
+            <AlertCircle className="text-orange-500" size={18} />
+            <span className="text-xs font-semibold text-slate-600">Boletos a Vencer — {MESES[mesAtual]}</span>
+          </div>
+          <div className="text-xl font-bold text-orange-700">R$ {boletosPendentesMesValor.toLocaleString('pt-BR')}</div>
+          <div className="text-xs text-slate-400 mt-1">{boletosPendentesMes.length} boleto{boletosPendentesMes.length !== 1 ? 's' : ''} com vencimento neste mês</div>
+        </Link>
+        <Link to="/boletos" className="bg-blue-50 rounded-xl p-4 border border-blue-200 shadow-sm hover:shadow-md transition-shadow">
+          <div className="flex items-center gap-2 mb-1">
+            <CheckCircle className="text-blue-500" size={18} />
+            <span className="text-xs font-semibold text-slate-600">Boletos Pagos — {MESES[mesAtual]}</span>
+          </div>
+          <div className="text-xl font-bold text-blue-700">R$ {boletosPagosMesValor.toLocaleString('pt-BR')}</div>
+          <div className="text-xs text-slate-400 mt-1">{boletosPagosMes.length} boleto{boletosPagosMes.length !== 1 ? 's' : ''} recebido{boletosPagosMes.length !== 1 ? 's' : ''} no mês</div>
+        </Link>
       </div>
 
       {/* Top Vendedores do Mês */}
@@ -282,11 +335,13 @@ export default function Dashboard() {
   )
 }
 
-function Card({ icon, label, value, bg }: { icon: React.ReactNode; label: string; value: string | number; bg: string }) {
-  return (
-    <div className={`${bg} rounded-xl p-4 border border-slate-200 shadow-sm`}>
+function Card({ icon, label, value, bg, to }: { icon: React.ReactNode; label: string; value: string | number; bg: string; to?: string }) {
+  const inner = (
+    <>
       <div className="flex items-center gap-2 mb-1">{icon}<span className="text-xs font-semibold text-slate-600">{label}</span></div>
       <div className="text-xl font-bold text-slate-800">{value}</div>
-    </div>
+    </>
   )
+  if (to) return <Link to={to} className={`${bg} rounded-xl p-4 border border-slate-200 shadow-sm hover:shadow-md transition-shadow block`}>{inner}</Link>
+  return <div className={`${bg} rounded-xl p-4 border border-slate-200 shadow-sm`}>{inner}</div>
 }

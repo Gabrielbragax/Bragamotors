@@ -93,6 +93,7 @@ export interface Veiculo {
   chassi?: string
   renavam?: string
   dataEntrada: string
+  dataInicioEstoque?: string
   valorPago: number
   aquisicao: AquisicaoType
   documentoTipo: DocumentType

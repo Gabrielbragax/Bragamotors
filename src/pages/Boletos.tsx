@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useStore } from '../store/useStore'
 import { differenceInDays } from 'date-fns'
-import { AlertCircle, CheckCircle, Clock, Edit2, Save, Plus, FileText, X, User, Car } from 'lucide-react'
+import { AlertCircle, CheckCircle, Clock, Edit2, Save, Plus, FileText, X, User, Car, ChevronDown, ChevronUp } from 'lucide-react'
 import { v4 as uuid } from '../utils/uuid'
 import type { Boleto } from '../types'
 import NumInput from '../components/NumInput'
@@ -12,6 +12,7 @@ export default function Boletos() {
   const { veiculos, clientes, updateVeiculo } = useStore()
   const [filtro, setFiltro] = useState<StatusFiltro>('todos')
   const [busca, setBusca] = useState('')
+  const [expandido, setExpandido] = useState<string | null>(null)
   const [editando, setEditando] = useState<string | null>(null)
   const [editValor, setEditValor] = useState(0)
   const [editVencimento, setEditVencimento] = useState('')
@@ -24,59 +25,77 @@ export default function Boletos() {
     const d = new Date(b.vencimento); d.setHours(0, 0, 0, 0)
     if (d < hoje) return 'vencido'
     if (d.getTime() === hoje.getTime()) return 'hoje'
+    const diasRestantes = differenceInDays(d, hoje)
+    if (diasRestantes <= 5) return 'aberto'
     return 'aberto'
   }
 
-  type Item = {
+  const getDiasRestantes = (b: Boleto): number | null => {
+    if (b.pago) return null
+    const d = new Date(b.vencimento); d.setHours(0, 0, 0, 0)
+    if (d <= hoje) return null
+    return differenceInDays(d, hoje)
+  }
+
+  // Agrupa por veículo
+  type VeiculoItem = {
     veiculoId: string
     veiculo: string
     placa: string
     clienteNome: string
     clienteCpf: string
-    boleto: Boleto
-    totalDivida: number
+    boletos: Boleto[]
+    saldoDevedor: number
+    temVencido: boolean
+    temHoje: boolean
     contratoArquivo?: string
     contratoArquivoNome?: string
   }
 
-  const todos: Item[] = veiculos.flatMap(v => {
-    const boletos = v.venda?.boletos || []
-    if (boletos.length === 0) return []
-    const clienteVenda = v.venda?.cliente
-    const clienteCad = clientes.find(c => c.cpf === clienteVenda?.cpf)
-    const nomeCliente = clienteVenda?.nome || clienteCad?.nome || 'Cliente não informado'
-    const cpfCliente = clienteVenda?.cpf || clienteCad?.cpf || ''
-    const totalDivida = boletos.filter(b => !b.pago).reduce((a, b) => a + b.valor, 0)
-    return boletos.map(b => ({
-      veiculoId: v.id,
-      veiculo: `${v.marca} ${v.modelo} ${v.ano}`,
-      placa: v.placa,
-      clienteNome: nomeCliente,
-      clienteCpf: cpfCliente,
-      boleto: b,
-      totalDivida,
-      contratoArquivo: v.venda?.contratoArquivo,
-      contratoArquivoNome: v.venda?.contratoArquivoNome,
-    }))
-  })
+  const porVeiculo: VeiculoItem[] = veiculos
+    .filter(v => (v.venda?.boletos || []).length > 0)
+    .map(v => {
+      const boletos = v.venda?.boletos || []
+      const clienteVenda = v.venda?.cliente
+      const clienteCad = clientes.find(c => c.cpf === clienteVenda?.cpf)
+      const nomeCliente = clienteVenda?.nome || clienteCad?.nome || 'Cliente não informado'
+      const cpfCliente = clienteVenda?.cpf || clienteCad?.cpf || ''
+      const saldoDevedor = boletos.filter(b => !b.pago).reduce((a, b) => a + b.valor, 0)
+      const temVencido = boletos.some(b => getBoletoStatus(b) === 'vencido')
+      const temHoje = boletos.some(b => getBoletoStatus(b) === 'hoje')
+      return {
+        veiculoId: v.id,
+        veiculo: `${v.marca} ${v.modelo} ${v.ano}`,
+        placa: v.placa,
+        clienteNome: nomeCliente,
+        clienteCpf: cpfCliente,
+        boletos,
+        saldoDevedor,
+        temVencido,
+        temHoje,
+        contratoArquivo: v.venda?.contratoArquivo,
+        contratoArquivoNome: v.venda?.contratoArquivoNome,
+      }
+    })
 
-  const filtrados = todos.filter(item => {
-    const status = getBoletoStatus(item.boleto)
-    const matchFiltro = filtro === 'todos' || status === filtro
+  // Counts para os filtros (por boleto individual)
+  const todosBoletosFlat = porVeiculo.flatMap(v => v.boletos)
+  const counts = {
+    vencido: todosBoletosFlat.filter(b => getBoletoStatus(b) === 'vencido').length,
+    hoje: todosBoletosFlat.filter(b => getBoletoStatus(b) === 'hoje').length,
+    aberto: todosBoletosFlat.filter(b => getBoletoStatus(b) === 'aberto').length,
+    pago: todosBoletosFlat.filter(b => getBoletoStatus(b) === 'pago').length,
+  }
+
+  const filtrados = porVeiculo.filter(item => {
     const matchBusca = !busca ||
       item.veiculo.toLowerCase().includes(busca.toLowerCase()) ||
       item.clienteNome.toLowerCase().includes(busca.toLowerCase()) ||
       item.clienteCpf.includes(busca) ||
       item.placa.toLowerCase().includes(busca.toLowerCase())
-    return matchFiltro && matchBusca
+    const matchFiltro = filtro === 'todos' || item.boletos.some(b => getBoletoStatus(b) === filtro)
+    return matchBusca && matchFiltro
   })
-
-  const counts = {
-    vencido: todos.filter(i => getBoletoStatus(i.boleto) === 'vencido').length,
-    hoje: todos.filter(i => getBoletoStatus(i.boleto) === 'hoje').length,
-    aberto: todos.filter(i => getBoletoStatus(i.boleto) === 'aberto').length,
-    pago: todos.filter(i => getBoletoStatus(i.boleto) === 'pago').length,
-  }
 
   const updateBoleto = (veiculoId: string, boletoId: string, updates: Partial<Boleto>, obs?: string) => {
     const v = veiculos.find(x => x.id === veiculoId)
@@ -96,15 +115,12 @@ export default function Boletos() {
     updateVeiculo({ ...v, venda: { ...v.venda, boletos: [...(v.venda.boletos || []), novo] } })
   }
 
-  const statusConfig: Record<StatusFiltro, { label: string; color: string; icon: React.ReactNode }> = {
-    todos: { label: 'Todos', color: 'bg-slate-100 text-slate-700', icon: null },
+  const statusConfig: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
     vencido: { label: 'Vencido', color: 'bg-red-100 text-red-700', icon: <AlertCircle size={12} /> },
     hoje: { label: 'Vence hoje', color: 'bg-orange-100 text-orange-700', icon: <Clock size={12} /> },
     aberto: { label: 'Em aberto', color: 'bg-blue-100 text-blue-700', icon: <Clock size={12} /> },
     pago: { label: 'Pago', color: 'bg-green-100 text-green-700', icon: <CheckCircle size={12} /> },
   }
-
-  const veiculoIds = [...new Set(filtrados.map(i => i.veiculoId))]
 
   return (
     <div className="space-y-4">
@@ -128,147 +144,241 @@ export default function Boletos() {
       {filtrados.length === 0 ? (
         <div className="bg-white rounded-xl p-12 text-center border border-slate-200 text-slate-400 text-sm">Nenhum boleto encontrado</div>
       ) : (
-        <div className="space-y-4">
-          {veiculoIds.map(vid => {
-            const items = filtrados.filter(i => i.veiculoId === vid)
-            const first = items[0]
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          {/* Cabeçalho da lista */}
+          <div className="hidden sm:grid grid-cols-12 gap-2 px-4 py-2 bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+            <div className="col-span-3">Veículo / Placa</div>
+            <div className="col-span-3">Cliente</div>
+            <div className="col-span-2">CPF</div>
+            <div className="col-span-2 text-right">Saldo Devedor</div>
+            <div className="col-span-2 text-center">Situação</div>
+          </div>
+
+          {filtrados.map((item, idx) => {
+            const aberto = expandido === item.veiculoId
             return (
-              <div key={vid} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                {/* Header do card */}
-                <div className="px-5 py-4 bg-slate-50 border-b border-slate-200">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="space-y-1">
-                      {/* Carro */}
-                      <div className="flex items-center gap-2">
-                        <Car size={15} className="text-blue-500 shrink-0" />
-                        <span className="font-bold text-slate-800">{first.veiculo}</span>
-                        <span className="text-xs text-slate-400 bg-slate-200 px-2 py-0.5 rounded-full">{first.placa}</span>
+              <div key={item.veiculoId} className={idx !== 0 ? 'border-t border-slate-100' : ''}>
+                {/* Linha da lista */}
+                <button
+                  onClick={() => setExpandido(aberto ? null : item.veiculoId)}
+                  className="w-full text-left px-4 py-3 hover:bg-slate-50 transition-colors"
+                >
+                  <div className="grid grid-cols-12 gap-2 items-center">
+                    {/* Veículo + placa */}
+                    <div className="col-span-10 sm:col-span-3">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Car size={14} className="text-blue-500 shrink-0" />
+                        <span className="font-semibold text-slate-800 text-sm">{item.veiculo}</span>
                       </div>
-                      {/* Cliente */}
-                      <div className="flex items-center gap-2">
-                        <User size={14} className="text-slate-400 shrink-0" />
-                        <span className="text-sm text-slate-700 font-medium">{first.clienteNome}</span>
-                        {first.clienteCpf && <span className="text-xs text-slate-400">CPF: {first.clienteCpf}</span>}
+                      <div className="mt-0.5">
+                        <span className="text-xs font-black font-mono tracking-widest border-2 border-slate-800 rounded px-1.5 py-0.5 text-slate-900">{item.placa}</span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3 flex-wrap">
-                      {first.contratoArquivoNome && (
-                        <a href={first.contratoArquivo} download={first.contratoArquivoNome}
-                          className="flex items-center gap-1 text-xs text-blue-600 hover:underline border border-blue-200 bg-blue-50 px-2 py-1 rounded-lg">
-                          <FileText size={12} /> Contrato
-                        </a>
-                      )}
-                      <div className="text-right">
-                        <div className="text-xs text-slate-400">Total devedor</div>
-                        <div className="font-bold text-red-600 text-lg">R$ {first.totalDivida.toLocaleString('pt-BR')}</div>
+
+                    {/* Cliente (esconde no mobile) */}
+                    <div className="hidden sm:block col-span-3">
+                      <div className="flex items-center gap-1">
+                        <User size={13} className="text-slate-400 shrink-0" />
+                        <span className="text-sm text-slate-700 truncate">{item.clienteNome}</span>
                       </div>
-                      <button onClick={() => addBoletoNoVeiculo(vid)}
-                        className="flex items-center gap-1 text-xs text-blue-600 hover:underline border border-blue-200 bg-blue-50 px-2 py-1 rounded-lg">
-                        <Plus size={12} /> Boleto
-                      </button>
+                    </div>
+
+                    {/* CPF */}
+                    <div className="hidden sm:block col-span-2 text-xs text-slate-500">{item.clienteCpf || '—'}</div>
+
+                    {/* Saldo devedor */}
+                    <div className="hidden sm:block col-span-2 text-right">
+                      <span className={`font-bold text-sm ${item.saldoDevedor > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                        R$ {item.saldoDevedor.toLocaleString('pt-BR')}
+                      </span>
+                    </div>
+
+                    {/* Situação */}
+                    <div className="hidden sm:flex col-span-2 justify-center">
+                      {item.temVencido ? (
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700">
+                          <AlertCircle size={11} /> Vencido
+                        </span>
+                      ) : item.temHoje ? (
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">
+                          <Clock size={11} /> Vence hoje
+                        </span>
+                      ) : item.saldoDevedor === 0 ? (
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+                          <CheckCircle size={11} /> Quitado
+                        </span>
+                      ) : (() => {
+                        const proxVenc = item.boletos
+                          .filter(b => !b.pago && b.vencimento)
+                          .map(b => getDiasRestantes(b))
+                          .filter((d): d is number => d !== null)
+                        const menorDias = proxVenc.length > 0 ? Math.min(...proxVenc) : null
+                        if (menorDias !== null && menorDias <= 5) {
+                          return (
+                            <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${menorDias <= 2 ? 'bg-orange-100 text-orange-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                              <Clock size={11} /> Vence em {menorDias}d
+                            </span>
+                          )
+                        }
+                        return (
+                          <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                            <Clock size={11} /> Em dia
+                          </span>
+                        )
+                      })()}
+                    </div>
+
+                    {/* Seta + info mobile */}
+                    <div className="col-span-2 sm:hidden flex flex-col items-end gap-1">
+                      <span className={`font-bold text-sm ${item.saldoDevedor > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                        R$ {item.saldoDevedor.toLocaleString('pt-BR')}
+                      </span>
+                      {item.temVencido && <span className="text-xs text-red-600 font-semibold">Vencido</span>}
+                    </div>
+
+                    <div className="col-span-12 sm:col-span-12 flex justify-end -mt-1 sm:hidden">
+                      {aberto ? <ChevronUp size={16} className="text-slate-400" /> : <ChevronDown size={16} className="text-slate-400" />}
                     </div>
                   </div>
-                </div>
+                  {/* Seta desktop */}
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 hidden sm:block" />
+                </button>
 
-                {/* Boletos */}
-                <div className="divide-y divide-slate-50">
-                  {items.map(({ boleto: b }) => {
-                    const status = getBoletoStatus(b)
-                    const isEdit = editando === b.id
-                    const diasAtraso = status === 'vencido' ? differenceInDays(hoje, new Date(b.vencimento)) : 0
-                    return (
-                      <div key={b.id} className={`px-5 py-4 ${status === 'vencido' ? 'bg-red-50/40' : status === 'hoje' ? 'bg-orange-50/40' : ''}`}>
-                        <div className="flex flex-wrap items-start gap-4">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 flex-wrap mb-2">
-                              <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${statusConfig[status].color}`}>
-                                {statusConfig[status].icon}
-                                {statusConfig[status].label}
-                                {status === 'vencido' && ` — ${diasAtraso}d de atraso`}
-                              </span>
-                              {b.alterado && (
-                                <span className="text-xs bg-amber-400 text-white px-2 py-0.5 rounded-full font-bold tracking-wide">ALTERADO</span>
-                              )}
-                            </div>
-
-                            {isEdit ? (
-                              <div className="space-y-3 mt-2">
-                                <div className="grid grid-cols-2 gap-3">
-                                  <div>
-                                    <div className="text-xs text-slate-400 mb-1">Novo valor (R$)</div>
-                                    <NumInput value={editValor} onChange={setEditValor} />
-                                  </div>
-                                  <div>
-                                    <div className="text-xs text-slate-400 mb-1">Novo vencimento</div>
-                                    <input className="input" type="date" value={editVencimento} onChange={e => setEditVencimento(e.target.value)} />
-                                  </div>
-                                </div>
-                                <div>
-                                  <div className="text-xs text-slate-400 mb-1">Motivo da alteração *</div>
-                                  <textarea className="input h-14 resize-none text-sm" value={obsAlteracao} onChange={e => setObsAlteracao(e.target.value)} placeholder="Ex: Negociação de prazo, desconto acordado..." />
-                                </div>
-                                <div className="flex gap-2">
-                                  <button onClick={() => {
-                                    updateBoleto(vid, b.id, { valor: editValor, vencimento: editVencimento }, obsAlteracao)
-                                    setEditando(null); setObsAlteracao('')
-                                  }} className="flex items-center gap-1 bg-green-600 text-white text-xs px-3 py-1.5 rounded-lg">
-                                    <Save size={12} /> Salvar alteração
-                                  </button>
-                                  <button onClick={() => { setEditando(null); setObsAlteracao('') }}
-                                    className="flex items-center gap-1 border border-slate-200 text-slate-600 text-xs px-3 py-1.5 rounded-lg hover:bg-slate-50">
-                                    <X size={12} /> Cancelar
-                                  </button>
-                                </div>
-                                {b.obsAlteracao && (
-                                  <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
-                                    Obs anterior: {b.obsAlteracao}
-                                  </div>
-                                )}
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-6 flex-wrap">
-                                <div>
-                                  <div className="text-xs text-slate-400">Valor</div>
-                                  <div className="font-bold text-slate-800 text-lg">R$ {b.valor.toLocaleString('pt-BR')}</div>
-                                </div>
-                                <div>
-                                  <div className="text-xs text-slate-400">Vencimento</div>
-                                  <div className="font-medium text-slate-700">{b.vencimento ? new Date(b.vencimento + 'T12:00').toLocaleDateString('pt-BR') : '-'}</div>
-                                </div>
-                                {b.pago && b.dataPagamento && (
-                                  <div>
-                                    <div className="text-xs text-slate-400">Pago em</div>
-                                    <div className="font-medium text-green-600">{new Date(b.dataPagamento + 'T12:00').toLocaleDateString('pt-BR')}</div>
-                                  </div>
-                                )}
-                                {b.obsAlteracao && (
-                                  <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
-                                    {b.obsAlteracao}
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-
-                          {!isEdit && (
-                            <div className="flex items-center gap-2 pt-1">
-                              <button
-                                onClick={() => updateBoleto(vid, b.id, { pago: !b.pago, dataPagamento: !b.pago ? new Date().toISOString().split('T')[0] : undefined })}
-                                className={`text-xs px-3 py-1.5 rounded-full font-semibold transition-colors border ${b.pago ? 'bg-green-100 text-green-700 border-green-200 hover:bg-green-200' : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'}`}
-                              >
-                                {b.pago ? '✓ Pago' : 'Marcar pago'}
-                              </button>
-                              <button onClick={() => { setEditando(b.id); setEditValor(b.valor); setEditVencimento(b.vencimento) }}
-                                className="text-slate-400 hover:text-blue-600 p-1 rounded hover:bg-blue-50">
-                                <Edit2 size={15} />
-                              </button>
-                            </div>
-                          )}
+                {/* Card expandido */}
+                {aberto && (
+                  <div className="border-t border-slate-200 bg-slate-50 px-4 py-5 space-y-4">
+                    {/* Info do cliente */}
+                    <div className="flex flex-wrap gap-4 items-start justify-between">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <User size={14} className="text-slate-500" />
+                          <span className="font-semibold text-slate-800">{item.clienteNome}</span>
+                          {item.clienteCpf && <span className="text-xs text-slate-500">CPF: {item.clienteCpf}</span>}
+                        </div>
+                        <div className="text-sm text-slate-500">
+                          Saldo devedor: <span className="font-bold text-red-600">R$ {item.saldoDevedor.toLocaleString('pt-BR')}</span>
                         </div>
                       </div>
-                    )
-                  })}
-                </div>
+                      <div className="flex gap-2">
+                        {item.contratoArquivoNome && (
+                          <a href={item.contratoArquivo} download={item.contratoArquivoNome}
+                            className="flex items-center gap-1 text-xs text-blue-600 border border-blue-200 bg-blue-50 px-2 py-1 rounded-lg hover:bg-blue-100">
+                            <FileText size={12} /> Contrato
+                          </a>
+                        )}
+                        <button onClick={() => addBoletoNoVeiculo(item.veiculoId)}
+                          className="flex items-center gap-1 text-xs text-blue-600 border border-blue-200 bg-blue-50 px-2 py-1 rounded-lg hover:bg-blue-100">
+                          <Plus size={12} /> Novo boleto
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Lista de boletos */}
+                    <div className="space-y-2">
+                      {item.boletos.map(b => {
+                        const status = getBoletoStatus(b)
+                        const isEdit = editando === b.id
+                        const diasAtraso = status === 'vencido' ? differenceInDays(hoje, new Date(b.vencimento)) : 0
+
+                        return (
+                          <div key={b.id} className={`bg-white rounded-xl border p-4 ${status === 'vencido' ? 'border-red-200' : status === 'hoje' ? 'border-orange-200' : 'border-slate-200'}`}>
+                            <div className="flex flex-wrap items-start gap-4">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 flex-wrap mb-2">
+                                  {(() => {
+                                    const diasRestantes = getDiasRestantes(b)
+                                    const isProximo = diasRestantes !== null && diasRestantes <= 5
+                                    const cfg = isProximo
+                                      ? { label: diasRestantes === 0 ? 'Vence hoje' : `Vence em ${diasRestantes}d`, color: diasRestantes <= 2 ? 'bg-orange-100 text-orange-700' : 'bg-yellow-100 text-yellow-700', icon: <Clock size={12} /> }
+                                      : statusConfig[status]
+                                    return (
+                                      <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${cfg.color}`}>
+                                        {cfg.icon}
+                                        {cfg.label}
+                                        {status === 'vencido' && ` — ${diasAtraso}d de atraso`}
+                                      </span>
+                                    )
+                                  })()}
+                                  {b.alterado && (
+                                    <span className="text-xs bg-amber-400 text-white px-2 py-0.5 rounded-full font-bold">ALTERADO</span>
+                                  )}
+                                </div>
+
+                                {isEdit ? (
+                                  <div className="space-y-3">
+                                    <div className="grid grid-cols-2 gap-3">
+                                      <div>
+                                        <div className="text-xs text-slate-400 mb-1">Novo valor (R$)</div>
+                                        <NumInput value={editValor} onChange={setEditValor} />
+                                      </div>
+                                      <div>
+                                        <div className="text-xs text-slate-400 mb-1">Novo vencimento</div>
+                                        <input className="input" type="date" value={editVencimento} onChange={e => setEditVencimento(e.target.value)} />
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <div className="text-xs text-slate-400 mb-1">Motivo da alteração</div>
+                                      <textarea className="input h-14 resize-none text-sm" value={obsAlteracao} onChange={e => setObsAlteracao(e.target.value)} placeholder="Ex: Negociação de prazo..." />
+                                    </div>
+                                    <div className="flex gap-2">
+                                      <button onClick={() => {
+                                        updateBoleto(item.veiculoId, b.id, { valor: editValor, vencimento: editVencimento }, obsAlteracao)
+                                        setEditando(null); setObsAlteracao('')
+                                      }} className="flex items-center gap-1 bg-green-600 text-white text-xs px-3 py-1.5 rounded-lg">
+                                        <Save size={12} /> Salvar
+                                      </button>
+                                      <button onClick={() => { setEditando(null); setObsAlteracao('') }}
+                                        className="flex items-center gap-1 border border-slate-200 text-slate-600 text-xs px-3 py-1.5 rounded-lg hover:bg-slate-50">
+                                        <X size={12} /> Cancelar
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-6 flex-wrap">
+                                    <div>
+                                      <div className="text-xs text-slate-400">Valor</div>
+                                      <div className="font-bold text-slate-800 text-lg">R$ {b.valor.toLocaleString('pt-BR')}</div>
+                                    </div>
+                                    <div>
+                                      <div className="text-xs text-slate-400">Vencimento</div>
+                                      <div className="font-medium text-slate-700">{b.vencimento ? new Date(b.vencimento + 'T12:00').toLocaleDateString('pt-BR') : '—'}</div>
+                                    </div>
+                                    {b.pago && b.dataPagamento && (
+                                      <div>
+                                        <div className="text-xs text-slate-400">Pago em</div>
+                                        <div className="font-medium text-green-600">{new Date(b.dataPagamento + 'T12:00').toLocaleDateString('pt-BR')}</div>
+                                      </div>
+                                    )}
+                                    {b.obsAlteracao && (
+                                      <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                                        {b.obsAlteracao}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+
+                              {!isEdit && (
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => updateBoleto(item.veiculoId, b.id, { pago: !b.pago, dataPagamento: !b.pago ? new Date().toISOString().split('T')[0] : undefined })}
+                                    className={`text-xs px-3 py-1.5 rounded-full font-semibold transition-colors border ${b.pago ? 'bg-green-100 text-green-700 border-green-200 hover:bg-green-200' : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'}`}
+                                  >
+                                    {b.pago ? '✓ Pago' : 'Marcar pago'}
+                                  </button>
+                                  <button onClick={() => { setEditando(b.id); setEditValor(b.valor); setEditVencimento(b.vencimento) }}
+                                    className="text-slate-400 hover:text-blue-600 p-1 rounded hover:bg-blue-50">
+                                    <Edit2 size={15} />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             )
           })}

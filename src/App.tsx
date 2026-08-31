@@ -14,7 +14,6 @@ import EstoqueImprimir from './pages/EstoqueImprimir'
 import Relatorios from './pages/Relatorios'
 import Pesquisa from './pages/Pesquisa'
 import { useStore } from './store/useStore'
-import { Car } from 'lucide-react'
 
 function AppContent() {
   const { loadAll, loaded } = useStore()
@@ -25,12 +24,12 @@ function AppContent() {
 
   if (!loaded) {
     return (
-      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center gap-4">
-        <Car className="text-blue-400 animate-pulse" size={48} />
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4" style={{ background: '#000' }}>
+        <img src="/logo.png" alt="BragaMotors" className="w-24 h-24 rounded-2xl animate-pulse" />
         <div className="text-white font-bold text-xl">BragaMotors</div>
-        <div className="text-slate-400 text-sm">Carregando dados...</div>
-        <div className="w-48 h-1.5 bg-slate-700 rounded-full overflow-hidden mt-2">
-          <div className="h-full bg-blue-500 rounded-full animate-pulse w-3/4" />
+        <div className="text-sm" style={{ color: '#888' }}>Carregando dados...</div>
+        <div className="w-48 h-1.5 rounded-full overflow-hidden mt-2" style={{ background: '#222' }}>
+          <div className="h-full rounded-full animate-pulse w-3/4" style={{ background: '#009246' }} />
         </div>
       </div>
     )

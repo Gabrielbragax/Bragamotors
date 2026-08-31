@@ -98,14 +98,20 @@ export default function VeiculoForm() {
   }
 
   const custoPrep = (form.servicosPreparacao || []).reduce((a, s) => a + Number(s.valor), 0)
-  const custoTotal = Number(form.valorPago || 0) + custoPrep
+  const custoTotal = Number(form.valorPago || 0) + custoPrep + Number(form.trafegoPago || 0)
 
   const handleSave = async () => {
     if (!form.placa || !form.marca || !form.modelo) {
       alert('Preencha ao menos Placa, Marca e Modelo.')
       return
     }
-    const veiculo = { ...form, id: existing?.id || uuid() } as Veiculo
+    const novoStatus = form.status
+    const statusAnterior = existing?.status
+    const dataInicioEstoque =
+      novoStatus === 'estoque' && statusAnterior === 'preparacao'
+        ? new Date().toISOString().split('T')[0]
+        : form.dataInicioEstoque ?? existing?.dataInicioEstoque
+    const veiculo = { ...form, id: existing?.id || uuid(), dataInicioEstoque } as Veiculo
     if (existing) await updateVeiculo(veiculo)
     else await addVeiculo(veiculo)
     navigate('/estoque')

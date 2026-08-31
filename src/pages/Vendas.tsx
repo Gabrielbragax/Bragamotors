@@ -41,7 +41,7 @@ export default function Vendas() {
   const totalFaturamento = filtrados.reduce((a, v) => a + (v.venda?.valorVenda || 0), 0)
   const totalLucro = filtrados.reduce((a, v) => {
     const cp = v.servicosPreparacao.reduce((x, s) => x + s.valor, 0)
-    return a + (v.venda?.valorVenda || 0) - v.valorPago - cp
+    return a + (v.venda?.valorVenda || 0) - v.valorPago - cp - (v.trafegoPago || 0)
   }, 0)
 
   const periodoLabel =
@@ -144,7 +144,7 @@ export default function Vendas() {
               <tbody className="divide-y divide-slate-50">
                 {filtrados.map(v => {
                   const cp = v.servicosPreparacao.reduce((a, s) => a + s.valor, 0)
-                  const custo = v.valorPago + cp
+                  const custo = v.valorPago + cp + (v.trafegoPago || 0)
                   const lb = v.venda!.valorVenda - v.valorPago
                   const ll = v.venda!.valorVenda - custo
                   const pct = (ll / v.venda!.valorVenda) * 100

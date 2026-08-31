@@ -7,15 +7,6 @@ import { v4 as uuid } from '../utils/uuid'
 import type { Venda, FormaPagamento, FormaPgto, ServicoPosVenda, Boleto, ClienteVenda, CartaoCredito } from '../types'
 import NumInput from '../components/NumInput'
 
-const FORMA_LABELS: Record<FormaPagamento, string> = {
-  troca_financiamento: 'Troca + Financiamento',
-  entrada_financiamento: 'Entrada + Financiamento',
-  financiamento: 'Só Financiamento',
-  avista: 'À Vista',
-  entrada_boleto: 'Entrada + Boleto',
-  troca_boleto: 'Troca + Boleto',
-  misto: 'Misto',
-}
 
 function fileToBase64(file: File): Promise<string> {
   return new Promise((res, rej) => {
@@ -42,11 +33,20 @@ export default function VeiculoDetalhe() {
 
   if (!v) return <div className="p-8 text-slate-400">Veículo não encontrado.</div>
 
-  const dias = differenceInDays(new Date(), new Date(v.dataEntrada))
+  const hoje = new Date()
+  const diasTotal = differenceInDays(hoje, new Date(v.dataEntrada))
+  const diasPrep = v.dataInicioEstoque
+    ? differenceInDays(new Date(v.dataInicioEstoque), new Date(v.dataEntrada))
+    : v.status === 'preparacao' ? diasTotal : null
+  const diasEstoque = v.dataInicioEstoque
+    ? differenceInDays(hoje, new Date(v.dataInicioEstoque))
+    : v.status === 'estoque' ? diasTotal : null
   const custoPrep = v.servicosPreparacao.reduce((a, s) => a + s.valor, 0)
-  const custo = v.valorPago + custoPrep
-  const lucroB = v.venda ? v.venda.valorVenda - v.valorPago : null
-  const lucroL = v.venda ? v.venda.valorVenda - custo : null
+  const custo = v.valorPago + custoPrep + (v.trafegoPago || 0)
+  const totalBoletos = v.venda ? (v.venda.boletos || []).reduce((a, b) => a + b.valor, 0) : 0
+  const valorVendaLiquido = v.venda ? v.venda.valorVenda - totalBoletos : 0
+  const lucroB = v.venda ? valorVendaLiquido - v.valorPago : null
+  const lucroL = v.venda ? valorVendaLiquido - custo : null
   const pctLucro = lucroL && v.venda ? (lucroL / v.venda.valorVenda) * 100 : null
 
   const addPosVenda = () => {
@@ -114,9 +114,26 @@ export default function VeiculoDetalhe() {
             {v.status === 'estoque' ? 'Em Estoque' : v.status === 'preparacao' ? 'Em Preparação' : 'Vendido'}
           </div>
         </div>
-        <div className="bg-white rounded-xl p-3 border border-slate-200">
-          <div className="text-xs text-slate-500">Dias no estoque</div>
-          <div className={`font-bold text-lg mt-1 ${dias > 90 ? 'text-red-600' : dias > 45 ? 'text-orange-500' : 'text-green-600'}`}>{dias}d</div>
+        <div className="bg-white rounded-xl p-3 border border-slate-200 col-span-2 sm:col-span-1">
+          <div className="text-xs text-slate-500 mb-1">Tempo no negócio</div>
+          <div className="flex flex-wrap gap-x-4 gap-y-0.5">
+            <div>
+              <span className="text-xs text-slate-400">Total </span>
+              <span className={`font-bold text-sm ${diasTotal > 90 ? 'text-red-600' : diasTotal > 45 ? 'text-orange-500' : 'text-green-600'}`}>{diasTotal}d</span>
+            </div>
+            {diasPrep !== null && (
+              <div>
+                <span className="text-xs text-slate-400">Prep </span>
+                <span className="font-bold text-sm text-yellow-600">{diasPrep}d</span>
+              </div>
+            )}
+            {diasEstoque !== null && (
+              <div>
+                <span className="text-xs text-slate-400">Loja </span>
+                <span className={`font-bold text-sm ${diasEstoque > 60 ? 'text-red-600' : diasEstoque > 30 ? 'text-orange-500' : 'text-green-600'}`}>{diasEstoque}d</span>
+              </div>
+            )}
+          </div>
         </div>
         <div className="bg-white rounded-xl p-3 border border-slate-200">
           <div className="text-xs text-slate-500">Custo total</div>
@@ -430,7 +447,7 @@ function VendaTab({ v, updateVeiculo, clientes, addCliente, updateCliente, vende
           <User size={16} className="text-slate-500" />
           <span className="text-sm font-semibold text-slate-700">Cliente</span>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <div className="text-xs text-slate-400 mb-1">Nome completo</div>
             <input className="input" value={venda.cliente?.nome || ''} onChange={e => setCliente('nome', e.target.value)} placeholder="Nome do cliente..." />
@@ -438,10 +455,6 @@ function VendaTab({ v, updateVeiculo, clientes, addCliente, updateCliente, vende
           <div>
             <div className="text-xs text-slate-400 mb-1">CPF</div>
             <input className="input" value={venda.cliente?.cpf || ''} onChange={e => setCliente('cpf', e.target.value)} placeholder="000.000.000-00" />
-          </div>
-          <div>
-            <div className="text-xs text-slate-400 mb-1">Data de Nascimento</div>
-            <input className="input" type="date" value={venda.cliente?.dataNascimento || ''} onChange={e => setCliente('dataNascimento', e.target.value)} />
           </div>
         </div>
       </div>
@@ -538,23 +551,9 @@ function VendaTab({ v, updateVeiculo, clientes, addCliente, updateCliente, vende
       {formasPgto.includes('cartao') && (
         <div className="bg-rose-50 rounded-xl border border-rose-200 p-4 space-y-3">
           <div className="text-sm font-semibold text-rose-800">💳 Cartão de Crédito</div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <div className="text-xs text-slate-500 mb-1">Bandeira</div>
-              <select className="input" value={venda.cartaoCredito?.bandeira || ''} onChange={e => set('cartaoCredito', { ...(venda.cartaoCredito as CartaoCredito), bandeira: e.target.value })}>
-                <option value="">Selecione...</option>
-                <option>Visa</option><option>Mastercard</option><option>Elo</option>
-                <option>American Express</option><option>Hipercard</option>
-              </select>
-            </div>
-            <div>
-              <div className="text-xs text-slate-500 mb-1">Nº parcelas</div>
-              <NumInput value={venda.cartaoCredito?.numeroParcelas || 0} onChange={val => set('cartaoCredito', { ...(venda.cartaoCredito as CartaoCredito), numeroParcelas: val })} />
-            </div>
-            <div>
-              <div className="text-xs text-slate-500 mb-1">Valor total no cartão (R$)</div>
-              <NumInput value={venda.cartaoCredito?.valorTotal || 0} onChange={val => set('cartaoCredito', { ...(venda.cartaoCredito as CartaoCredito), valorTotal: val })} />
-            </div>
+          <div className="max-w-xs">
+            <div className="text-xs text-slate-500 mb-1">Valor total no cartão (R$)</div>
+            <NumInput value={venda.cartaoCredito?.valorTotal || 0} onChange={val => set('cartaoCredito', { ...(venda.cartaoCredito as CartaoCredito), valorTotal: val })} />
           </div>
         </div>
       )}

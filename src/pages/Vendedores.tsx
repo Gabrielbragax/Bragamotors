@@ -57,7 +57,7 @@ export default function Vendedores() {
       const faturamento = vendas.reduce((a, v) => a + (v.venda?.valorVenda || 0), 0)
       const lucro = vendas.reduce((a, v) => {
         const cp = v.servicosPreparacao.reduce((x, s) => x + s.valor, 0)
-        return a + (v.venda?.valorVenda || 0) - v.valorPago - cp
+        return a + (v.venda?.valorVenda || 0) - v.valorPago - cp - (v.trafegoPago || 0)
       }, 0)
       return { vend, vendas, faturamento, lucro }
     })
