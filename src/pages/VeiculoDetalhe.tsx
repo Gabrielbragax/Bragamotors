@@ -47,7 +47,9 @@ export default function VeiculoDetalhe() {
   const totalBoletos = v.venda ? (v.venda.boletos || []).reduce((a, b) => a + b.valor, 0) : 0
   const valorVendaLiquido = v.venda ? v.venda.valorVenda - totalBoletos : 0
   const lucroB = v.venda ? valorVendaLiquido - v.valorPago : null
-  const lucroL = v.venda ? valorVendaLiquido - custo - custoPosVenda : null
+  const lucroLTotal = v.venda ? valorVendaLiquido - custo - custoPosVenda : null
+  const percentualConsig = v.consignado ? (v.percentualConsignado || 0) : 100
+  const lucroL = lucroLTotal !== null ? lucroLTotal * (percentualConsig / 100) : null
   const pctLucro = lucroL && v.venda ? (lucroL / v.venda.valorVenda) * 100 : null
 
   const addPosVenda = () => {
@@ -104,6 +106,9 @@ export default function VeiculoDetalhe() {
       <div className="flex items-center gap-3 flex-wrap">
         <button onClick={() => navigate('/estoque')} className="text-slate-500 hover:text-slate-800"><ChevronLeft size={22} /></button>
         <h1 className="text-xl font-bold text-slate-800 flex-1">{v.marca} {v.modelo} {v.ano} • <span className="text-slate-500 font-normal">{v.placa}</span></h1>
+        {v.consignado && (
+          <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-semibold">Consignado</span>
+        )}
         <Link to={`/estoque/${v.id}/editar`} className="flex items-center gap-1 text-sm text-blue-600 hover:underline"><Edit size={14} /> Editar</Link>
         <button onClick={handleDelete} className="text-sm text-red-500 hover:underline">Excluir</button>
       </div>
@@ -272,7 +277,14 @@ export default function VeiculoDetalhe() {
 
               {v.venda && lucroL !== null && (
                 <div className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-xl p-5 text-white">
-                  <div className="text-sm font-semibold mb-4 flex items-center gap-2"><TrendingUp size={16} /> Resultado Financeiro</div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="text-sm font-semibold flex items-center gap-2"><TrendingUp size={16} /> Resultado Financeiro</div>
+                    {v.consignado && (
+                      <span className="text-xs bg-purple-500/20 text-purple-300 border border-purple-400/30 px-2 py-1 rounded-full font-semibold">
+                        Consignado — você fica com {percentualConsig}% de R$ {lucroLTotal!.toLocaleString('pt-BR')}
+                      </span>
+                    )}
+                  </div>
                   <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
                     <div>
                       <div className="text-xs text-slate-400">Valor de venda</div>

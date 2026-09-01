@@ -65,15 +65,20 @@ export default function Dashboard() {
     return acc + (v.venda?.valorVenda || 0) - totalBoletos
   }, 0)
   // Custo pós-venda entra pelo mês em que o SERVIÇO foi feito (não o mês da venda) —
-  // mesma lógica de "boletos pagos no mês", já que a despesa acontece quando é gasta de verdade
-  const custoPosVendaMes = veiculos.flatMap(v => (v.servicosPosVenda || []).filter(s => {
-    const d = new Date(s.data)
-    return d.getMonth() === mesSel && d.getFullYear() === anoSel
-  })).reduce((a, s) => a + s.valor, 0)
+  // mesma lógica de "boletos pagos no mês", já que a despesa acontece quando é gasta de verdade.
+  // Se o veículo é consignado, só a % combinada desse custo entra como "meu" gasto.
+  const custoPosVendaMes = veiculos.flatMap(v => {
+    const pct = v.consignado ? (v.percentualConsignado || 0) / 100 : 1
+    return (v.servicosPosVenda || [])
+      .filter(s => { const d = new Date(s.data); return d.getMonth() === mesSel && d.getFullYear() === anoSel })
+      .map(s => s.valor * pct)
+  }).reduce((a, x) => a + x, 0)
   const lucroMes = vendidosMes.reduce((acc, v) => {
     const cp = v.servicosPreparacao.reduce((a, s) => a + s.valor, 0)
     const totalBoletos = (v.venda?.boletos || []).reduce((a, b) => a + b.valor, 0)
-    return acc + (v.venda?.valorVenda || 0) - totalBoletos - v.valorPago - cp - (v.trafegoPago || 0)
+    const lucroBase = (v.venda?.valorVenda || 0) - totalBoletos - v.valorPago - cp - (v.trafegoPago || 0)
+    const pct = v.consignado ? (v.percentualConsignado || 0) / 100 : 1
+    return acc + lucroBase * pct
   }, 0) - custoPosVendaMes
 
   const veiculosMaisTempo = [...emEstoque, ...emPreparacao]

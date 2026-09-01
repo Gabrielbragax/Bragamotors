@@ -103,6 +103,8 @@ export interface Veiculo {
   precoTroca?: number
   precoAvista?: number
   status: VeiculoStatus
+  consignado?: boolean
+  percentualConsignado?: number
   opcionais: string[]
   fotos: string[]
   portaisAnunciado: string[]

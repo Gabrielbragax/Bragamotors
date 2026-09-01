@@ -117,7 +117,8 @@ export default function Estoque() {
             const custoPosVenda = v.servicosPosVenda.reduce((a, s) => a + s.valor, 0)
             const custoTotal = v.valorPago + custoPrep + (v.trafegoPago || 0)
             const totalBoletos = (v.venda?.boletos || []).reduce((a, b) => a + b.valor, 0)
-            const lucro = v.venda ? (v.venda.valorVenda - totalBoletos) - custoTotal - custoPosVenda : null
+            const pctConsig = v.consignado ? (v.percentualConsignado || 0) : 100
+            const lucro = v.venda ? ((v.venda.valorVenda - totalBoletos) - custoTotal - custoPosVenda) * (pctConsig / 100) : null
             return (
               <Link
                 key={v.id}
@@ -135,8 +136,9 @@ export default function Estoque() {
 
                 {/* Nome e info */}
                 <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-slate-800 text-sm truncate">
+                  <div className="font-semibold text-slate-800 text-sm truncate flex items-center gap-1.5">
                     {v.marca} {v.modelo}{v.versao ? ` ${v.versao}` : ''}
+                    {v.consignado && <span className="shrink-0 text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full font-semibold">Consig.</span>}
                   </div>
                   <div className="text-xs text-slate-400 mt-0.5">
                     {v.ano}/{v.anoModelo} • {v.cor} • {v.km > 0 ? v.km.toLocaleString('pt-BR') + ' km' : 'km n/d'}
@@ -164,8 +166,8 @@ export default function Estoque() {
                       <div className="text-right border-l border-slate-100 pl-4">
                         <div className="text-xs text-slate-400">À Vista</div>
                         <div className="text-sm font-bold text-green-700">R$ {v.precoAvista.toLocaleString('pt-BR')}</div>
-                        <div className={`text-xs font-semibold ${v.precoAvista - custoTotal >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                          {v.precoAvista - custoTotal >= 0 ? '+' : ''}R$ {(v.precoAvista - custoTotal).toLocaleString('pt-BR')}
+                        <div className={`text-xs font-semibold ${(v.precoAvista - custoTotal) * (pctConsig / 100) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                          {(v.precoAvista - custoTotal) * (pctConsig / 100) >= 0 ? '+' : ''}R$ {((v.precoAvista - custoTotal) * (pctConsig / 100)).toLocaleString('pt-BR')}
                         </div>
                       </div>
                     ) : null}
@@ -173,8 +175,8 @@ export default function Estoque() {
                       <div className="text-right border-l border-slate-100 pl-4">
                         <div className="text-xs text-slate-400">Troca</div>
                         <div className="text-sm font-bold text-amber-700">R$ {v.precoTroca.toLocaleString('pt-BR')}</div>
-                        <div className={`text-xs font-semibold ${v.precoTroca - custoTotal >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                          {v.precoTroca - custoTotal >= 0 ? '+' : ''}R$ {(v.precoTroca - custoTotal).toLocaleString('pt-BR')}
+                        <div className={`text-xs font-semibold ${(v.precoTroca - custoTotal) * (pctConsig / 100) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                          {(v.precoTroca - custoTotal) * (pctConsig / 100) >= 0 ? '+' : ''}R$ {((v.precoTroca - custoTotal) * (pctConsig / 100)).toLocaleString('pt-BR')}
                         </div>
                       </div>
                     ) : null}

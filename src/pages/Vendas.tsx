@@ -2,6 +2,20 @@ import { useState } from 'react'
 import { useStore } from '../store/useStore'
 import { Link } from 'react-router-dom'
 import { TrendingUp, Car, DollarSign, Filter, FileBarChart } from 'lucide-react'
+import type { Veiculo } from '../types'
+
+/** Lucro líquido de uma venda: desconta boletos (nunca contam como lucro), custo de
+ *  aquisição/preparação/tráfego e pós-venda. Se for consignado, aplica a % combinada
+ *  por cima — o resto do lucro é do dono do carro, não da loja. */
+function lucroLiquidoVenda(v: Veiculo): number {
+  const cp = v.servicosPreparacao.reduce((x, s) => x + s.valor, 0)
+  const cpv = v.servicosPosVenda.reduce((x, s) => x + s.valor, 0)
+  const totalBoletos = (v.venda?.boletos || []).reduce((x, b) => x + b.valor, 0)
+  const vendaLiquida = (v.venda?.valorVenda || 0) - totalBoletos
+  const lucroTotal = vendaLiquida - v.valorPago - cp - (v.trafegoPago || 0) - cpv
+  const pct = v.consignado ? (v.percentualConsignado || 0) : 100
+  return lucroTotal * (pct / 100)
+}
 
 const FORMA_LABELS: Record<string, string> = {
   troca_financiamento: 'Troca + Financ.',
@@ -45,13 +59,7 @@ export default function Vendas() {
   })
 
   const totalFaturamento = filtrados.reduce((a, v) => a + (v.venda?.valorVenda || 0), 0)
-  const totalLucro = filtrados.reduce((a, v) => {
-    const cp = v.servicosPreparacao.reduce((x, s) => x + s.valor, 0)
-    const cpv = v.servicosPosVenda.reduce((x, s) => x + s.valor, 0)
-    const totalBoletos = (v.venda?.boletos || []).reduce((x, b) => x + b.valor, 0)
-    const vendaLiquida = (v.venda?.valorVenda || 0) - totalBoletos
-    return a + vendaLiquida - v.valorPago - cp - (v.trafegoPago || 0) - cpv
-  }, 0)
+  const totalLucro = filtrados.reduce((a, v) => a + lucroLiquidoVenda(v), 0)
 
   const periodoLabel =
     filtroTipo === 'mes' ? `${MESES_CURTOS[mesSel]}/${anoSel}` :
@@ -67,13 +75,7 @@ export default function Vendas() {
       return d.getFullYear() === anoSel && d.getMonth() === m && matchVendedor
     })
     const fat = doMes.reduce((a, v) => a + (v.venda?.valorVenda || 0), 0)
-    const luc = doMes.reduce((a, v) => {
-      const cp = v.servicosPreparacao.reduce((x, s) => x + s.valor, 0)
-      const cpv = v.servicosPosVenda.reduce((x, s) => x + s.valor, 0)
-      const totalBoletos = (v.venda?.boletos || []).reduce((x, b) => x + b.valor, 0)
-      const vendaLiquida = (v.venda?.valorVenda || 0) - totalBoletos
-      return a + vendaLiquida - v.valorPago - cp - (v.trafegoPago || 0) - cpv
-    }, 0)
+    const luc = doMes.reduce((a, v) => a + lucroLiquidoVenda(v), 0)
     return { mes: m, qtd: doMes.length, faturamento: fat, lucro: luc }
   }) : []
 
@@ -236,7 +238,7 @@ export default function Vendas() {
                   const vendaLiquida = v.venda!.valorVenda - totalBoletos
                   const custo = v.valorPago + cp + (v.trafegoPago || 0)
                   const lb = vendaLiquida - v.valorPago
-                  const ll = vendaLiquida - custo - cpv
+                  const ll = lucroLiquidoVenda(v)
                   const pct = (ll / v.venda!.valorVenda) * 100
                   return (
                     <tr key={v.id} className="hover:bg-slate-50">
@@ -247,7 +249,10 @@ export default function Vendas() {
                         <Link to={`/estoque/${v.id}`} className="font-medium text-blue-600 hover:underline">
                           {v.marca} {v.modelo}{v.versao ? ` ${v.versao}` : ''} {v.ano}
                         </Link>
-                        <div className="text-xs text-slate-400">{v.placa}</div>
+                        <div className="text-xs text-slate-400 flex items-center gap-1.5">
+                          {v.placa}
+                          {v.consignado && <span className="bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full font-semibold">Consig. {v.percentualConsignado || 0}%</span>}
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-slate-600">{v.venda!.vendedor || '-'}</td>
                       <td className="px-4 py-3">

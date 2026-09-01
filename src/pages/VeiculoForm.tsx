@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useStore } from '../store/useStore'
 import type { Veiculo, ServicoPreparacao, AquisicaoType, DocumentType, TipoServico } from '../types'
-import { OPCIONAIS_DISPONIVEIS, PORTAIS_DISPONIVEIS } from '../types'
-import { ChevronLeft, Plus, Trash2, Upload, X, Camera, Check, AlertCircle } from 'lucide-react'
+import { OPCIONAIS_DISPONIVEIS } from '../types'
+import { ChevronLeft, Plus, Trash2, Upload, Check, AlertCircle, Percent } from 'lucide-react'
 import { v4 as uuid } from '../utils/uuid'
 import BrandModelSelector from '../components/BrandModelSelector'
 import NumInput from '../components/NumInput'
@@ -34,7 +34,7 @@ export default function VeiculoForm() {
   const { veiculos, addVeiculo, updateVeiculo } = useStore()
   const existing = id && id !== 'novo' ? veiculos.find(v => v.id === id) : undefined
 
-  const [tab, setTab] = useState<'dados' | 'opcionais' | 'fotos' | 'preparacao' | 'marketing'>('dados')
+  const [tab, setTab] = useState<'dados' | 'opcionais' | 'preparacao' | 'consignado'>('dados')
 
   const [form, setForm] = useState<Partial<Veiculo>>({
     placa: '', marca: '', modelo: '', versao: '', ano: new Date().getFullYear(),
@@ -43,6 +43,7 @@ export default function VeiculoForm() {
     valorPago: 0, aquisicao: 'porta_loja', documentoTipo: 'transferencia',
     laudoCautelar: false, status: 'preparacao', opcionais: [], fotos: [],
     portaisAnunciado: [], trafegoPago: 0, servicosPreparacao: [], servicosPosVenda: [], observacoes: '',
+    consignado: false, percentualConsignado: 0,
   })
 
   useEffect(() => {
@@ -55,18 +56,6 @@ export default function VeiculoForm() {
     const arr = form.opcionais || []
     set('opcionais', arr.includes(o) ? arr.filter(x => x !== o) : [...arr, o])
   }
-  const togglePortal = (p: string) => {
-    const arr = form.portaisAnunciado || []
-    set('portaisAnunciado', arr.includes(p) ? arr.filter(x => x !== p) : [...arr, p])
-  }
-
-  const addFoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || [])
-    const b64s = await Promise.all(files.map(fileToBase64))
-    set('fotos', [...(form.fotos || []), ...b64s])
-    e.target.value = ''
-  }
-  const removeFoto = (i: number) => set('fotos', (form.fotos || []).filter((_, j) => j !== i))
 
   const addServico = () => {
     const novo: ServicoPreparacao = {
@@ -120,9 +109,8 @@ export default function VeiculoForm() {
   const tabs = [
     { key: 'dados', label: 'Dados' },
     { key: 'opcionais', label: 'Opcionais' },
-    { key: 'fotos', label: 'Fotos' },
     { key: 'preparacao', label: 'Preparação' },
-    { key: 'marketing', label: 'Marketing' },
+    { key: 'consignado', label: 'Consignado' },
   ] as const
 
   return (
@@ -328,41 +316,6 @@ export default function VeiculoForm() {
             </div>
           )}
 
-          {/* FOTOS */}
-          {tab === 'fotos' && (
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <div className="text-sm text-slate-500">{(form.fotos || []).length} foto(s)</div>
-                <label className="cursor-pointer flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm">
-                  <Camera size={14} /> Adicionar Fotos
-                  <input type="file" className="hidden" multiple accept="image/*" onChange={addFoto} />
-                </label>
-              </div>
-              {(form.fotos || []).length === 0 ? (
-                <label className="cursor-pointer block border-2 border-dashed border-slate-200 rounded-xl p-12 text-center hover:border-blue-400 transition-colors">
-                  <Camera className="mx-auto text-slate-300 mb-2" size={40} />
-                  <p className="text-slate-400 text-sm">Clique para adicionar fotos</p>
-                  <input type="file" className="hidden" multiple accept="image/*" onChange={addFoto} />
-                </label>
-              ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                  {(form.fotos || []).map((f, i) => (
-                    <div key={i} className="relative group rounded-lg overflow-hidden aspect-video bg-slate-100">
-                      <img src={f} alt="" className="w-full h-full object-cover" />
-                      <button
-                        onClick={() => removeFoto(i)}
-                        className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <X size={12} />
-                      </button>
-                      {i === 0 && <div className="absolute bottom-1 left-1 bg-blue-600 text-white text-xs px-2 py-0.5 rounded">Capa</div>}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
           {/* PREPARAÇÃO */}
           {tab === 'preparacao' && (
             <div className="space-y-4">
@@ -433,33 +386,34 @@ export default function VeiculoForm() {
             </div>
           )}
 
-          {/* MARKETING */}
-          {tab === 'marketing' && (
+          {/* CONSIGNADO */}
+          {tab === 'consignado' && (
             <div className="space-y-5">
-              <div>
-                <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Investimento em Tráfego Pago (R$)</div>
-                <NumInput className="input max-w-xs" value={form.trafegoPago || 0} onChange={v => set('trafegoPago', v)} placeholder="0" />
-              </div>
-              <div>
-                <div className="mb-3 text-sm text-slate-500">Portais onde o veículo foi anunciado</div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {PORTAIS_DISPONIVEIS.map(p => {
-                    const sel = (form.portaisAnunciado || []).includes(p)
-                    return (
-                      <button
-                        key={p}
-                        onClick={() => togglePortal(p)}
-                        className={`flex items-center gap-2 px-4 py-3 rounded-xl border text-sm font-medium transition-colors ${sel ? 'bg-green-50 border-green-400 text-green-800' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}
-                      >
-                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 ${sel ? 'bg-green-600 border-green-600' : 'border-slate-300'}`}>
-                          {sel && <Check size={11} className="text-white" />}
-                        </div>
-                        {p}
-                      </button>
-                    )
-                  })}
+              <label className="flex items-center gap-3 cursor-pointer select-none p-4 bg-slate-50 rounded-xl border border-slate-200 hover:bg-slate-100 transition-colors">
+                <button
+                  type="button"
+                  onClick={() => set('consignado', !form.consignado)}
+                  className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${form.consignado ? 'bg-purple-600 border-purple-600' : 'border-slate-300'}`}
+                >
+                  {form.consignado && <Check size={12} className="text-white" />}
+                </button>
+                <div>
+                  <div className="text-sm font-semibold text-slate-700">Veículo Consignado</div>
+                  <div className="text-xs text-slate-400">O carro é de outra pessoa — você fica só com uma parte do lucro na venda</div>
                 </div>
-              </div>
+              </label>
+
+              {form.consignado && (
+                <div className="bg-purple-50 rounded-xl border border-purple-200 p-4 space-y-2">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-purple-800 uppercase">
+                    <Percent size={13} /> Minha porcentagem do lucro
+                  </div>
+                  <NumInput className="input max-w-xs" value={form.percentualConsignado || 0} onChange={v => set('percentualConsignado', v)} placeholder="Ex: 50" />
+                  <div className="text-xs text-slate-500">
+                    O lucro do veículo (venda menos custos) é calculado normalmente — só o valor mostrado como "lucro líquido" no sistema é essa porcentagem dele. O restante é do dono do carro.
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
