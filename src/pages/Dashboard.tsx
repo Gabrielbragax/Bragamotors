@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useStore } from '../store/useStore'
-import { Car, TrendingUp, Clock, DollarSign, AlertCircle, CheckCircle, Target, Edit2, Save, UserCheck, Trophy } from 'lucide-react'
+import { Car, TrendingUp, Clock, DollarSign, AlertCircle, CheckCircle, Target, Edit2, Save, UserCheck, Trophy, ChevronLeft, ChevronRight } from 'lucide-react'
 import { differenceInDays } from 'date-fns'
 import { Link } from 'react-router-dom'
 import NumInput from '../components/NumInput'
@@ -16,10 +16,34 @@ export default function Dashboard() {
   const mesAtual = now.getMonth()
   const anoAtual = now.getFullYear()
 
+  // Mês sendo visualizado no Dashboard — começa no atual, mas dá pra navegar pra meses passados
+  const [mesSel, setMesSel] = useState(mesAtual)
+  const [anoSel, setAnoSel] = useState(anoAtual)
+  const noMesAtual = mesSel === mesAtual && anoSel === anoAtual
+
+  const irParaMesAnterior = () => {
+    if (mesSel === 0) { setMesSel(11); setAnoSel(anoSel - 1) }
+    else setMesSel(mesSel - 1)
+  }
+  const irParaProximoMes = () => {
+    if (noMesAtual) return
+    if (mesSel === 11) { setMesSel(0); setAnoSel(anoSel + 1) }
+    else setMesSel(mesSel + 1)
+  }
+  const voltarParaHoje = () => { setMesSel(mesAtual); setAnoSel(anoAtual) }
+
   const [editandoMeta, setEditandoMeta] = useState(false)
-  const metaAtual = metas.find(m => m.mes === mesAtual && m.ano === anoAtual)
+  const metaAtual = metas.find(m => m.mes === mesSel && m.ano === anoSel)
   const [metaQtd, setMetaQtd] = useState(metaAtual?.metaQuantidade || 0)
   const [metaFat, setMetaFat] = useState(metaAtual?.metaFaturamento || 0)
+
+  // Se o mês visualizado mudar enquanto o formulário de meta está fechado, sincroniza os campos
+  useEffect(() => {
+    if (!editandoMeta) {
+      setMetaQtd(metaAtual?.metaQuantidade || 0)
+      setMetaFat(metaAtual?.metaFaturamento || 0)
+    }
+  }, [mesSel, anoSel]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const emEstoque = veiculos.filter(v => v.status === 'estoque')
   const emPreparacao = veiculos.filter(v => v.status === 'preparacao')
@@ -33,7 +57,7 @@ export default function Dashboard() {
   const vendidosMes = vendidos.filter(v => {
     if (!v.venda) return false
     const d = new Date(v.venda.dataVenda)
-    return d.getMonth() === mesAtual && d.getFullYear() === anoAtual
+    return d.getMonth() === mesSel && d.getFullYear() === anoSel
   })
 
   const faturamentoMes = vendidosMes.reduce((acc, v) => {
@@ -59,20 +83,20 @@ export default function Dashboard() {
   const boletosPendentes = veiculos.flatMap(v => (v.venda?.boletos || []).filter(b => !b.pago))
   const boletosPendentesValor = boletosPendentes.reduce((a, b) => a + b.valor, 0)
 
-  // Boletos pendentes que vencem NESTE mês
+  // Boletos pendentes que vencem no mês visualizado
   const boletosPendentesMes = veiculos.flatMap(v => (v.venda?.boletos || []).filter(b => {
     if (b.pago) return false
     const d = new Date(b.vencimento)
-    return d.getMonth() === mesAtual && d.getFullYear() === anoAtual
+    return d.getMonth() === mesSel && d.getFullYear() === anoSel
   }))
   const boletosPendentesMesValor = boletosPendentesMes.reduce((a, b) => a + b.valor, 0)
 
-  // Boletos pagos no mês atual
+  // Boletos pagos no mês visualizado
   const boletosPagosMes = veiculos.flatMap(v => (v.venda?.boletos || []).filter(b => {
     if (!b.pago) return false
     const ref = b.dataPagamento || b.vencimento
     const d = new Date(ref)
-    return d.getMonth() === mesAtual && d.getFullYear() === anoAtual
+    return d.getMonth() === mesSel && d.getFullYear() === anoSel
   }))
   const boletosPagosMesValor = boletosPagosMes.reduce((a, b) => a + b.valor, 0)
 
@@ -103,16 +127,37 @@ export default function Dashboard() {
   const pctFat = metaAtual?.metaFaturamento ? Math.min(100, (faturamentoMes / metaAtual.metaFaturamento) * 100) : 0
 
   const salvarMeta = async () => {
-    await upsertMeta({ ano: anoAtual, mes: mesAtual, metaQuantidade: metaQtd, metaFaturamento: metaFat })
+    await upsertMeta({ ano: anoSel, mes: mesSel, metaQuantidade: metaQtd, metaFaturamento: metaFat })
     setEditandoMeta(false)
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-bold text-slate-800">Dashboard</h1>
-        <div className="text-sm text-slate-400">{MESES[mesAtual]} {anoAtual}</div>
+        <div className="flex items-center gap-1">
+          <button onClick={irParaMesAnterior} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100">
+            <ChevronLeft size={18} />
+          </button>
+          <div className="text-sm font-semibold text-slate-600 w-32 text-center">{MESES[mesSel]} {anoSel}</div>
+          <button onClick={irParaProximoMes} disabled={noMesAtual}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed">
+            <ChevronRight size={18} />
+          </button>
+          {!noMesAtual && (
+            <button onClick={voltarParaHoje} className="ml-2 text-xs text-blue-600 hover:underline font-medium">
+              Hoje
+            </button>
+          )}
+        </div>
       </div>
+
+      {!noMesAtual && (
+        <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+          <Clock size={13} />
+          Vendas, faturamento, lucro, boletos e ranking abaixo são de <strong>{MESES[mesSel]}/{anoSel}</strong> — Em Estoque, Em Preparação e Custo do Estoque sempre mostram a situação atual.
+        </div>
+      )}
 
       {/* Cards principais */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -127,7 +172,7 @@ export default function Dashboard() {
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <Target className="text-blue-500" size={20} />
-            <span className="font-semibold text-slate-700">Metas — {MESES[mesAtual]}</span>
+            <span className="font-semibold text-slate-700">Metas — {MESES[mesSel]}</span>
           </div>
           {!editandoMeta ? (
             <button onClick={() => { setMetaQtd(metaAtual?.metaQuantidade || 0); setMetaFat(metaAtual?.metaFaturamento || 0); setEditandoMeta(true) }}
@@ -242,7 +287,7 @@ export default function Dashboard() {
         <Link to="/boletos" className="bg-orange-50 rounded-xl p-4 border border-orange-200 shadow-sm hover:shadow-md transition-shadow">
           <div className="flex items-center gap-2 mb-1">
             <AlertCircle className="text-orange-500" size={18} />
-            <span className="text-xs font-semibold text-slate-600">Boletos a Vencer — {MESES[mesAtual]}</span>
+            <span className="text-xs font-semibold text-slate-600">Boletos a Vencer — {MESES[mesSel]}</span>
           </div>
           <div className="text-xl font-bold text-orange-700">R$ {boletosPendentesMesValor.toLocaleString('pt-BR')}</div>
           <div className="text-xs text-slate-400 mt-1">{boletosPendentesMes.length} boleto{boletosPendentesMes.length !== 1 ? 's' : ''} com vencimento neste mês</div>
@@ -250,7 +295,7 @@ export default function Dashboard() {
         <Link to="/boletos" className="bg-blue-50 rounded-xl p-4 border border-blue-200 shadow-sm hover:shadow-md transition-shadow">
           <div className="flex items-center gap-2 mb-1">
             <CheckCircle className="text-blue-500" size={18} />
-            <span className="text-xs font-semibold text-slate-600">Boletos Pagos — {MESES[mesAtual]}</span>
+            <span className="text-xs font-semibold text-slate-600">Boletos Pagos — {MESES[mesSel]}</span>
           </div>
           <div className="text-xl font-bold text-blue-700">R$ {boletosPagosMesValor.toLocaleString('pt-BR')}</div>
           <div className="text-xs text-slate-400 mt-1">{boletosPagosMes.length} boleto{boletosPagosMes.length !== 1 ? 's' : ''} recebido{boletosPagosMes.length !== 1 ? 's' : ''} no mês</div>
@@ -262,7 +307,7 @@ export default function Dashboard() {
         <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Trophy className="text-yellow-500" size={18} />
-            <h2 className="font-semibold text-slate-700">Top Vendedores — {MESES[mesAtual]}</h2>
+            <h2 className="font-semibold text-slate-700">Top Vendedores — {MESES[mesSel]}</h2>
           </div>
           <span className="text-xs text-blue-600">Ver todos →</span>
         </div>

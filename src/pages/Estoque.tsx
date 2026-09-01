@@ -13,7 +13,9 @@ export default function Estoque() {
   const [aba, setAba] = useState<Aba>('ativos')
 
   const ativos = veiculos.filter(v => v.status !== 'vendido')
-  const vendidos = veiculos.filter(v => v.status === 'vendido')
+  const vendidos = veiculos
+    .filter(v => v.status === 'vendido')
+    .sort((a, b) => new Date(b.venda?.dataVenda || 0).getTime() - new Date(a.venda?.dataVenda || 0).getTime())
 
   const filtrados = (aba === 'ativos' ? ativos : vendidos).filter(v => {
     const matchStatus = aba === 'vendidos' || filtroStatus === 'todos' || v.status === filtroStatus
