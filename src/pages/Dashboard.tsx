@@ -64,11 +64,17 @@ export default function Dashboard() {
     const totalBoletos = (v.venda?.boletos || []).reduce((a, b) => a + b.valor, 0)
     return acc + (v.venda?.valorVenda || 0) - totalBoletos
   }, 0)
+  // Custo pós-venda entra pelo mês em que o SERVIÇO foi feito (não o mês da venda) —
+  // mesma lógica de "boletos pagos no mês", já que a despesa acontece quando é gasta de verdade
+  const custoPosVendaMes = veiculos.flatMap(v => (v.servicosPosVenda || []).filter(s => {
+    const d = new Date(s.data)
+    return d.getMonth() === mesSel && d.getFullYear() === anoSel
+  })).reduce((a, s) => a + s.valor, 0)
   const lucroMes = vendidosMes.reduce((acc, v) => {
     const cp = v.servicosPreparacao.reduce((a, s) => a + s.valor, 0)
     const totalBoletos = (v.venda?.boletos || []).reduce((a, b) => a + b.valor, 0)
     return acc + (v.venda?.valorVenda || 0) - totalBoletos - v.valorPago - cp - (v.trafegoPago || 0)
-  }, 0)
+  }, 0) - custoPosVendaMes
 
   const veiculosMaisTempo = [...emEstoque, ...emPreparacao]
     .map(v => ({ ...v, dias: differenceInDays(new Date(), new Date(v.dataEntrada)) }))
@@ -255,6 +261,9 @@ export default function Dashboard() {
         <Link to="/vendas" className="bg-emerald-50 rounded-xl p-4 border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
           <div className="flex items-center gap-2 mb-1"><TrendingUp className="text-emerald-500" size={18} /><span className="text-xs font-semibold text-slate-600">Lucro Líquido do Mês</span></div>
           <div className={`text-xl font-bold ${lucroMes >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>R$ {lucroMes.toLocaleString('pt-BR')}</div>
+          {custoPosVendaMes > 0 && (
+            <div className="text-xs text-orange-600 mt-1">já descontado R$ {custoPosVendaMes.toLocaleString('pt-BR')} de pós-venda no mês</div>
+          )}
         </Link>
         <Link to="/boletos" className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
           <div className="flex items-center gap-2 mb-3">

@@ -114,8 +114,10 @@ export default function Estoque() {
           {filtrados.map((v, idx) => {
             const diasTotal = differenceInDays(new Date(), new Date(v.dataEntrada))
             const custoPrep = v.servicosPreparacao.reduce((a, s) => a + s.valor, 0)
+            const custoPosVenda = v.servicosPosVenda.reduce((a, s) => a + s.valor, 0)
             const custoTotal = v.valorPago + custoPrep + (v.trafegoPago || 0)
-            const lucro = v.venda ? v.venda.valorVenda - custoTotal : null
+            const totalBoletos = (v.venda?.boletos || []).reduce((a, b) => a + b.valor, 0)
+            const lucro = v.venda ? (v.venda.valorVenda - totalBoletos) - custoTotal - custoPosVenda : null
             return (
               <Link
                 key={v.id}

@@ -47,7 +47,10 @@ export default function Vendas() {
   const totalFaturamento = filtrados.reduce((a, v) => a + (v.venda?.valorVenda || 0), 0)
   const totalLucro = filtrados.reduce((a, v) => {
     const cp = v.servicosPreparacao.reduce((x, s) => x + s.valor, 0)
-    return a + (v.venda?.valorVenda || 0) - v.valorPago - cp - (v.trafegoPago || 0)
+    const cpv = v.servicosPosVenda.reduce((x, s) => x + s.valor, 0)
+    const totalBoletos = (v.venda?.boletos || []).reduce((x, b) => x + b.valor, 0)
+    const vendaLiquida = (v.venda?.valorVenda || 0) - totalBoletos
+    return a + vendaLiquida - v.valorPago - cp - (v.trafegoPago || 0) - cpv
   }, 0)
 
   const periodoLabel =
@@ -66,7 +69,10 @@ export default function Vendas() {
     const fat = doMes.reduce((a, v) => a + (v.venda?.valorVenda || 0), 0)
     const luc = doMes.reduce((a, v) => {
       const cp = v.servicosPreparacao.reduce((x, s) => x + s.valor, 0)
-      return a + (v.venda?.valorVenda || 0) - v.valorPago - cp - (v.trafegoPago || 0)
+      const cpv = v.servicosPosVenda.reduce((x, s) => x + s.valor, 0)
+      const totalBoletos = (v.venda?.boletos || []).reduce((x, b) => x + b.valor, 0)
+      const vendaLiquida = (v.venda?.valorVenda || 0) - totalBoletos
+      return a + vendaLiquida - v.valorPago - cp - (v.trafegoPago || 0) - cpv
     }, 0)
     return { mes: m, qtd: doMes.length, faturamento: fat, lucro: luc }
   }) : []
@@ -225,9 +231,12 @@ export default function Vendas() {
               <tbody className="divide-y divide-slate-50">
                 {filtrados.map(v => {
                   const cp = v.servicosPreparacao.reduce((a, s) => a + s.valor, 0)
+                  const cpv = v.servicosPosVenda.reduce((a, s) => a + s.valor, 0)
+                  const totalBoletos = (v.venda?.boletos || []).reduce((a, b) => a + b.valor, 0)
+                  const vendaLiquida = v.venda!.valorVenda - totalBoletos
                   const custo = v.valorPago + cp + (v.trafegoPago || 0)
-                  const lb = v.venda!.valorVenda - v.valorPago
-                  const ll = v.venda!.valorVenda - custo
+                  const lb = vendaLiquida - v.valorPago
+                  const ll = vendaLiquida - custo - cpv
                   const pct = (ll / v.venda!.valorVenda) * 100
                   return (
                     <tr key={v.id} className="hover:bg-slate-50">
@@ -247,7 +256,7 @@ export default function Vendas() {
                         </span>
                       </td>
                       <td className="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">R$ {v.venda!.valorVenda.toLocaleString('pt-BR')}</td>
-                      <td className="px-4 py-3 text-slate-500 whitespace-nowrap">R$ {custo.toLocaleString('pt-BR')}</td>
+                      <td className="px-4 py-3 text-slate-500 whitespace-nowrap">R$ {(custo + cpv).toLocaleString('pt-BR')}</td>
                       <td className={`px-4 py-3 font-semibold whitespace-nowrap ${lb >= 0 ? 'text-green-600' : 'text-red-600'}`}>R$ {lb.toLocaleString('pt-BR')}</td>
                       <td className={`px-4 py-3 font-bold whitespace-nowrap ${ll >= 0 ? 'text-green-600' : 'text-red-600'}`}>R$ {ll.toLocaleString('pt-BR')}</td>
                       <td className="px-4 py-3 whitespace-nowrap">

@@ -42,11 +42,12 @@ export default function VeiculoDetalhe() {
     ? differenceInDays(hoje, new Date(v.dataInicioEstoque))
     : v.status === 'estoque' ? diasTotal : null
   const custoPrep = v.servicosPreparacao.reduce((a, s) => a + s.valor, 0)
+  const custoPosVenda = v.servicosPosVenda.reduce((a, s) => a + s.valor, 0)
   const custo = v.valorPago + custoPrep + (v.trafegoPago || 0)
   const totalBoletos = v.venda ? (v.venda.boletos || []).reduce((a, b) => a + b.valor, 0) : 0
   const valorVendaLiquido = v.venda ? v.venda.valorVenda - totalBoletos : 0
   const lucroB = v.venda ? valorVendaLiquido - v.valorPago : null
-  const lucroL = v.venda ? valorVendaLiquido - custo : null
+  const lucroL = v.venda ? valorVendaLiquido - custo - custoPosVenda : null
   const pctLucro = lucroL && v.venda ? (lucroL / v.venda.valorVenda) * 100 : null
 
   const addPosVenda = () => {
@@ -272,7 +273,7 @@ export default function VeiculoDetalhe() {
               {v.venda && lucroL !== null && (
                 <div className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-xl p-5 text-white">
                   <div className="text-sm font-semibold mb-4 flex items-center gap-2"><TrendingUp size={16} /> Resultado Financeiro</div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
                     <div>
                       <div className="text-xs text-slate-400">Valor de venda</div>
                       <div className="text-lg font-bold text-green-400">R$ {v.venda.valorVenda.toLocaleString('pt-BR')}</div>
@@ -284,6 +285,10 @@ export default function VeiculoDetalhe() {
                     <div>
                       <div className="text-xs text-slate-400">Custo prep.</div>
                       <div className="text-lg font-bold text-yellow-300">R$ {custoPrep.toLocaleString('pt-BR')}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-slate-400">Custo pós-venda</div>
+                      <div className="text-lg font-bold text-orange-300">R$ {custoPosVenda.toLocaleString('pt-BR')}</div>
                     </div>
                     <div>
                       <div className="text-xs text-slate-400">Lucro líquido</div>
@@ -311,6 +316,7 @@ export default function VeiculoDetalhe() {
                 <div>
                   <div className="text-sm text-slate-500">Total pós-venda</div>
                   <div className="text-lg font-bold">R$ {v.servicosPosVenda.reduce((a, s) => a + s.valor, 0).toLocaleString('pt-BR')}</div>
+                  <div className="text-xs text-slate-400 mt-0.5">Já descontado do lucro líquido na aba Resumo</div>
                 </div>
                 <button onClick={addPosVenda} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm">
                   <Plus size={14} /> Adicionar
