@@ -423,11 +423,16 @@ function VendaTab({ v, updateVeiculo, clientes, addCliente, updateCliente, vende
       const existing = clientes.find((c: any) => c.cpf === cli.cpf)
       if (existing) {
         const jaTemVeiculo = existing.veiculosComprados.includes(v.id)
-        if (!jaTemVeiculo) {
-          await updateCliente({ ...existing, veiculosComprados: [...existing.veiculosComprados, v.id] })
+        const telefoneNovo = cli.telefone && cli.telefone !== existing.telefone
+        if (!jaTemVeiculo || telefoneNovo) {
+          await updateCliente({
+            ...existing,
+            telefone: cli.telefone || existing.telefone,
+            veiculosComprados: jaTemVeiculo ? existing.veiculosComprados : [...existing.veiculosComprados, v.id],
+          })
         }
       } else {
-        await addCliente({ id: uuid(), nome: cli.nome, cpf: cli.cpf, dataNascimento: cli.dataNascimento, veiculosComprados: [v.id] })
+        await addCliente({ id: uuid(), nome: cli.nome, cpf: cli.cpf, dataNascimento: cli.dataNascimento, telefone: cli.telefone, veiculosComprados: [v.id] })
       }
     }
     onSaved?.('Venda registrada com sucesso!')
@@ -465,7 +470,7 @@ function VendaTab({ v, updateVeiculo, clientes, addCliente, updateCliente, vende
           <User size={16} className="text-slate-500" />
           <span className="text-sm font-semibold text-slate-700">Cliente</span>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
             <div className="text-xs text-slate-400 mb-1">Nome completo</div>
             <input className="input" value={venda.cliente?.nome || ''} onChange={e => setCliente('nome', e.target.value)} placeholder="Nome do cliente..." />
@@ -473,6 +478,10 @@ function VendaTab({ v, updateVeiculo, clientes, addCliente, updateCliente, vende
           <div>
             <div className="text-xs text-slate-400 mb-1">CPF</div>
             <input className="input" value={venda.cliente?.cpf || ''} onChange={e => setCliente('cpf', e.target.value)} placeholder="000.000.000-00" />
+          </div>
+          <div>
+            <div className="text-xs text-slate-400 mb-1">Telefone (WhatsApp)</div>
+            <input className="input" value={venda.cliente?.telefone || ''} onChange={e => setCliente('telefone', e.target.value)} placeholder="(19) 99999-9999" />
           </div>
         </div>
       </div>

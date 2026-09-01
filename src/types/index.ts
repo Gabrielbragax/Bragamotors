@@ -58,6 +58,7 @@ export interface ClienteVenda {
   nome: string
   cpf: string
   dataNascimento?: string
+  telefone?: string
 }
 
 export interface Venda {
