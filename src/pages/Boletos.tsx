@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useStore } from '../store/useStore'
 import { differenceInDays } from 'date-fns'
-import { AlertCircle, CheckCircle, Clock, Edit2, Save, Plus, FileText, X, User, Car, ChevronDown, ChevronUp, MessageCircle, Trophy, Printer } from 'lucide-react'
+import { AlertCircle, CheckCircle, Clock, Edit2, Save, Plus, FileText, X, User, Car, ChevronDown, ChevronUp, MessageCircle, Trophy, Printer, MessageSquareText } from 'lucide-react'
 import { v4 as uuid } from '../utils/uuid'
 import type { Boleto } from '../types'
 import NumInput from '../components/NumInput'
@@ -16,6 +16,15 @@ function linkWhatsapp(telefone: string, mensagem: string): string {
   return `https://wa.me/${comDDI}?text=${encodeURIComponent(mensagem)}`
 }
 
+/** Troca {nome}, {valor}, {carro}, {data} pelos dados reais do boleto. */
+function preencherMensagem(template: string, dados: { nome: string; valor: string; carro: string; data: string }): string {
+  return template
+    .replaceAll('{nome}', dados.nome)
+    .replaceAll('{valor}', dados.valor)
+    .replaceAll('{carro}', dados.carro)
+    .replaceAll('{data}', dados.data)
+}
+
 /** Cor do badge escala conforme os dias de atraso — atraso longo chama mais atenção. */
 function corAtraso(dias: number): string {
   if (dias > 30) return 'bg-red-900 text-white'
@@ -24,7 +33,7 @@ function corAtraso(dias: number): string {
 }
 
 export default function Boletos() {
-  const { veiculos, clientes, updateVeiculo } = useStore()
+  const { veiculos, clientes, updateVeiculo, mensagemCobranca, setMensagemCobranca } = useStore()
   const [filtro, setFiltro] = useState<StatusFiltro>('todos')
   const [busca, setBusca] = useState('')
   const [expandido, setExpandido] = useState<string | null>(null)
@@ -33,6 +42,8 @@ export default function Boletos() {
   const [editVencimento, setEditVencimento] = useState('')
   const [obsAlteracao, setObsAlteracao] = useState('')
   const [mostrarRanking, setMostrarRanking] = useState(false)
+  const [editandoMensagem, setEditandoMensagem] = useState(false)
+  const [rascunhoMensagem, setRascunhoMensagem] = useState(mensagemCobranca)
 
   const hoje = new Date(); hoje.setHours(0, 0, 0, 0)
 
@@ -179,7 +190,11 @@ export default function Boletos() {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <h1 className="text-2xl font-bold text-slate-800">Boletos</h1>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <button onClick={() => { setRascunhoMensagem(mensagemCobranca); setEditandoMensagem(true) }}
+            className="inline-flex items-center gap-2 border border-slate-200 text-slate-600 hover:bg-slate-50 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+            <MessageSquareText size={16} /> Editar mensagem
+          </button>
           <button onClick={() => setMostrarRanking(m => !m)}
             className="inline-flex items-center gap-2 border border-slate-200 text-slate-600 hover:bg-slate-50 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
             <Trophy size={16} /> {mostrarRanking ? 'Ocultar' : 'Ver'} Ranking
@@ -189,6 +204,38 @@ export default function Boletos() {
           </Link>
         </div>
       </div>
+
+      {/* Modal editar mensagem de cobrança */}
+      {editandoMensagem && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl">
+            <div className="flex items-center justify-between p-5 border-b border-slate-200">
+              <h2 className="font-bold text-slate-800">Mensagem de cobrança (WhatsApp)</h2>
+              <button onClick={() => setEditandoMensagem(false)} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
+            </div>
+            <div className="p-5 space-y-3">
+              <textarea
+                className="input h-32 resize-none"
+                value={rascunhoMensagem}
+                onChange={e => setRascunhoMensagem(e.target.value)}
+                placeholder="Escreva a mensagem..."
+              />
+              <div className="text-xs text-slate-500 bg-slate-50 rounded-lg p-3">
+                Use <span className="font-mono font-semibold">{'{nome}'}</span>, <span className="font-mono font-semibold">{'{valor}'}</span>, <span className="font-mono font-semibold">{'{carro}'}</span> e <span className="font-mono font-semibold">{'{data}'}</span> — são trocados automaticamente pelos dados de cada boleto (no site e nos avisos do Telegram).
+              </div>
+            </div>
+            <div className="px-5 pb-5 flex gap-3 justify-end">
+              <button onClick={() => setEditandoMensagem(false)} className="px-4 py-2 rounded-lg border border-slate-200 text-sm text-slate-600">Cancelar</button>
+              <button
+                onClick={async () => { await setMensagemCobranca(rascunhoMensagem); setEditandoMensagem(false) }}
+                className="px-6 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold"
+              >
+                Salvar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Ranking de inadimplência */}
       {mostrarRanking && (
@@ -459,7 +506,12 @@ export default function Boletos() {
                                 <div className="flex items-center gap-2">
                                   {!b.pago && item.clienteTelefone && (
                                     <a
-                                      href={linkWhatsapp(item.clienteTelefone, `Olá ${item.clienteNome.split(' ')[0]}, tudo bem? Aqui é da BragaMotors. Identificamos que o boleto de R$ ${b.valor.toLocaleString('pt-BR')} referente ao seu ${item.veiculo} ${status === 'vencido' ? `venceu em ${new Date(b.vencimento + 'T12:00').toLocaleDateString('pt-BR')}` : `vence em ${new Date(b.vencimento + 'T12:00').toLocaleDateString('pt-BR')}`}. Poderia verificar a situação? Qualquer dúvida estou à disposição!`)}
+                                      href={linkWhatsapp(item.clienteTelefone, preencherMensagem(mensagemCobranca, {
+                                        nome: item.clienteNome.split(' ')[0],
+                                        valor: b.valor.toLocaleString('pt-BR'),
+                                        carro: item.veiculo,
+                                        data: new Date(b.vencimento + 'T12:00').toLocaleDateString('pt-BR'),
+                                      }))}
                                       target="_blank" rel="noopener noreferrer"
                                       className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-full font-semibold border bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
                                     >

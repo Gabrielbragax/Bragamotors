@@ -2,6 +2,9 @@ import { create } from 'zustand'
 import { supabase } from '../lib/supabase'
 import type { Veiculo, Cliente, Vendedor, MetaMensal, RelatorioDiario, SessaoPesquisa } from '../types'
 
+export const DEFAULT_MENSAGEM_COBRANCA =
+  'Olá {nome}, tudo bem? Aqui é da BragaMotors. Identificamos que o boleto de R$ {valor} referente ao seu {carro}, com vencimento em {data}, ainda está em aberto. Poderia verificar a situação? Qualquer dúvida estou à disposição!'
+
 interface Store {
   veiculos: Veiculo[]
   clientes: Cliente[]
@@ -9,9 +12,11 @@ interface Store {
   metas: MetaMensal[]
   relatorios: RelatorioDiario[]
   pesquisas: SessaoPesquisa[]
+  mensagemCobranca: string
   loaded: boolean
 
   loadAll: () => Promise<void>
+  setMensagemCobranca: (texto: string) => Promise<void>
 
   addVeiculo: (v: Veiculo) => Promise<void>
   updateVeiculo: (v: Veiculo) => Promise<void>
@@ -57,18 +62,26 @@ export const useStore = create<Store>((set) => ({
   metas: [],
   relatorios: [],
   pesquisas: [],
+  mensagemCobranca: DEFAULT_MENSAGEM_COBRANCA,
   loaded: false,
 
   loadAll: async () => {
-    const [veiculos, clientes, vendedores, metas, relatorios, pesquisas] = await Promise.all([
+    const [veiculos, clientes, vendedores, metas, relatorios, pesquisas, configuracoes] = await Promise.all([
       fetchTable<Veiculo>('veiculos'),
       fetchTable<Cliente>('clientes'),
       fetchTable<Vendedor>('vendedores'),
       fetchTable<MetaMensal>('metas'),
       fetchTable<RelatorioDiario>('relatorios'),
       fetchTable<SessaoPesquisa>('pesquisas'),
+      fetchTable<{ id: string; texto: string }>('configuracoes'),
     ])
-    set({ veiculos, clientes, vendedores, metas, relatorios, pesquisas, loaded: true })
+    const mensagemCobranca = configuracoes.find(c => c.id === 'mensagemCobranca')?.texto || DEFAULT_MENSAGEM_COBRANCA
+    set({ veiculos, clientes, vendedores, metas, relatorios, pesquisas, mensagemCobranca, loaded: true })
+  },
+
+  setMensagemCobranca: async (texto) => {
+    set({ mensagemCobranca: texto })
+    await upsertRow('configuracoes', 'mensagemCobranca', { id: 'mensagemCobranca', texto })
   },
 
   addVeiculo: async (v) => {

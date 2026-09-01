@@ -36,6 +36,18 @@ function linkWhatsapp(telefone: string, mensagem: string): string {
   return `https://wa.me/${comDDI}?text=${encodeURIComponent(mensagem)}`
 }
 
+const DEFAULT_MENSAGEM_COBRANCA =
+  'Olá {nome}, tudo bem? Aqui é da BragaMotors. Identificamos que o boleto de R$ {valor} referente ao seu {carro}, com vencimento em {data}, ainda está em aberto. Poderia verificar a situação? Qualquer dúvida estou à disposição!'
+
+/** Troca {nome}, {valor}, {carro}, {data} pelos dados reais — mesmo template usado no site. */
+function preencherMensagem(template: string, dados: { nome: string; valor: string; carro: string; data: string }): string {
+  return template
+    .replaceAll('{nome}', dados.nome)
+    .replaceAll('{valor}', dados.valor)
+    .replaceAll('{carro}', dados.carro)
+    .replaceAll('{data}', dados.data)
+}
+
 const MAX_MENSAGENS = 30 // teto de segurança pra não inundar o chat num dia com muito atraso
 
 export const config = { runtime: 'edge' }
@@ -52,15 +64,18 @@ export default async function handler(): Promise<Response> {
 
   const headers = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }
 
-  const [rVeiculos, rClientes] = await Promise.all([
+  const [rVeiculos, rClientes, rConfig] = await Promise.all([
     fetch(`${SUPABASE_URL}/rest/v1/veiculos?select=data`, { headers }),
     fetch(`${SUPABASE_URL}/rest/v1/clientes?select=data`, { headers }),
+    fetch(`${SUPABASE_URL}/rest/v1/configuracoes?select=data&id=eq.mensagemCobranca`, { headers }),
   ])
   if (!rVeiculos.ok || !rClientes.ok) {
     return new Response(JSON.stringify({ ok: false, error: 'Falha ao ler Supabase' }), { status: 500 })
   }
   const veiculos: Veiculo[] = (await rVeiculos.json()).map((row: { data: Veiculo }) => row.data)
   const clientes: Cliente[] = (await rClientes.json()).map((row: { data: Cliente }) => row.data)
+  const configRows: { data: { texto: string } }[] = rConfig.ok ? await rConfig.json() : []
+  const mensagemCobranca = configRows[0]?.data?.texto || DEFAULT_MENSAGEM_COBRANCA
 
   const hoje = new Date()
   hoje.setHours(0, 0, 0, 0)
@@ -121,7 +136,9 @@ export default async function handler(): Promise<Response> {
 
     const botoes = []
     if (i.telefone) {
-      const msgWhats = `Olá ${primeiroNome}, tudo bem? Aqui é da BragaMotors. Identificamos que o boleto de R$ ${fmtBRL(i.valor)} referente ao seu ${i.veiculo} ${i.situacao === 'hoje' ? `vence hoje (${dataFmt})` : `venceu em ${dataFmt}`}. Poderia verificar a situação? Qualquer dúvida estou à disposição!`
+      const msgWhats = preencherMensagem(mensagemCobranca, {
+        nome: primeiroNome, valor: fmtBRL(i.valor), carro: i.veiculo, data: dataFmt,
+      })
       botoes.push({ text: '💬 Cobrar agora', url: linkWhatsapp(i.telefone, msgWhats) })
     }
     botoes.push({ text: '✅ Dar baixa', callback_data: `pagar:${i.boletoId}` })
