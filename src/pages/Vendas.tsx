@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useStore } from '../store/useStore'
 import { Link } from 'react-router-dom'
-import { TrendingUp, Car, DollarSign, Filter } from 'lucide-react'
+import { TrendingUp, Car, DollarSign, Filter, FileBarChart } from 'lucide-react'
 
 const FORMA_LABELS: Record<string, string> = {
   troca_financiamento: 'Troca + Financ.',
@@ -18,10 +18,15 @@ const MESES_CURTOS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out
 export default function Vendas() {
   const veiculos = useStore(s => s.veiculos)
   const now = new Date()
-  const [filtroTipo, setFiltroTipo] = useState<'mes' | 'ano' | 'total'>('mes')
+  const [filtroTipo, setFiltroTipo] = useState<'mes' | 'ano' | 'total' | 'relatorio'>('mes')
   const [anoSel, setAnoSel] = useState(now.getFullYear())
   const [mesSel, setMesSel] = useState(now.getMonth())
+  const [mesesRelatorio, setMesesRelatorio] = useState<number[]>([now.getMonth()])
   const [vendedorSel, setVendedorSel] = useState('todos')
+
+  const toggleMesRelatorio = (m: number) => {
+    setMesesRelatorio(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m].sort((a, b) => a - b))
+  }
 
   const todos = veiculos.filter(v => v.status === 'vendido' && v.venda)
     .sort((a, b) => new Date(b.venda!.dataVenda).getTime() - new Date(a.venda!.dataVenda).getTime())
@@ -33,6 +38,7 @@ export default function Vendas() {
     const matchPeriodo =
       filtroTipo === 'total' ? true :
       filtroTipo === 'ano' ? d.getFullYear() === anoSel :
+      filtroTipo === 'relatorio' ? d.getFullYear() === anoSel && mesesRelatorio.includes(d.getMonth()) :
       d.getFullYear() === anoSel && d.getMonth() === mesSel
     const matchVendedor = vendedorSel === 'todos' || v.venda!.vendedor === vendedorSel
     return matchPeriodo && matchVendedor
@@ -46,7 +52,24 @@ export default function Vendas() {
 
   const periodoLabel =
     filtroTipo === 'mes' ? `${MESES_CURTOS[mesSel]}/${anoSel}` :
-    filtroTipo === 'ano' ? String(anoSel) : 'Todos os tempos'
+    filtroTipo === 'ano' ? String(anoSel) :
+    filtroTipo === 'relatorio' ? (mesesRelatorio.length ? `${mesesRelatorio.map(m => MESES_CURTOS[m]).join(' + ')}/${anoSel}` : 'Selecione os meses') :
+    'Todos os tempos'
+
+  // Comparativo mês a mês, só no modo Relatório
+  const breakdownMensal = filtroTipo === 'relatorio' ? mesesRelatorio.map(m => {
+    const doMes = todos.filter(v => {
+      const d = new Date(v.venda!.dataVenda)
+      const matchVendedor = vendedorSel === 'todos' || v.venda!.vendedor === vendedorSel
+      return d.getFullYear() === anoSel && d.getMonth() === m && matchVendedor
+    })
+    const fat = doMes.reduce((a, v) => a + (v.venda?.valorVenda || 0), 0)
+    const luc = doMes.reduce((a, v) => {
+      const cp = v.servicosPreparacao.reduce((x, s) => x + s.valor, 0)
+      return a + (v.venda?.valorVenda || 0) - v.valorPago - cp - (v.trafegoPago || 0)
+    }, 0)
+    return { mes: m, qtd: doMes.length, faturamento: fat, lucro: luc }
+  }) : []
 
   const anos = [now.getFullYear(), now.getFullYear() - 1, now.getFullYear() - 2]
 
@@ -62,9 +85,10 @@ export default function Vendas() {
         <div className="flex flex-wrap gap-3 items-center">
           {/* Tipo */}
           <div className="flex bg-slate-100 rounded-lg p-1 gap-1">
-            {([['mes','Por Mês'],['ano','Por Ano'],['total','Total']] as const).map(([k,l]) => (
+            {([['mes','Por Mês'],['ano','Por Ano'],['total','Total'],['relatorio','Relatório']] as const).map(([k,l]) => (
               <button key={k} onClick={() => setFiltroTipo(k)}
-                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${filtroTipo === k ? 'bg-blue-600 text-white' : 'text-slate-600 hover:text-slate-800'}`}>
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${filtroTipo === k ? 'bg-blue-600 text-white' : 'text-slate-600 hover:text-slate-800'}`}>
+                {k === 'relatorio' && <FileBarChart size={12} />}
                 {l}
               </button>
             ))}
@@ -82,7 +106,7 @@ export default function Vendas() {
             </div>
           )}
 
-          {/* Mês */}
+          {/* Mês (seleção única) */}
           {filtroTipo === 'mes' && (
             <div className="flex flex-wrap gap-1">
               {MESES_CURTOS.map((m, i) => (
@@ -91,6 +115,21 @@ export default function Vendas() {
                   {m}
                 </button>
               ))}
+            </div>
+          )}
+
+          {/* Meses (multi-seleção, modo Relatório) */}
+          {filtroTipo === 'relatorio' && (
+            <div className="flex flex-wrap gap-1">
+              {MESES_CURTOS.map((m, i) => {
+                const sel = mesesRelatorio.includes(i)
+                return (
+                  <button key={i} onClick={() => toggleMesRelatorio(i)}
+                    className={`px-2 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${sel ? 'bg-purple-600 text-white border-purple-600' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                    {m}
+                  </button>
+                )
+              })}
             </div>
           )}
 
@@ -109,6 +148,9 @@ export default function Vendas() {
             </div>
           )}
         </div>
+        {filtroTipo === 'relatorio' && (
+          <div className="text-xs text-slate-400">Clique nos meses para adicionar ou remover do relatório (pode combinar meses de qualquer parte do ano)</div>
+        )}
         <div className="text-xs text-slate-500">Exibindo: <span className="font-semibold text-blue-600">{periodoLabel}</span> — {filtrados.length} venda{filtrados.length !== 1 ? 's' : ''}</div>
       </div>
 
@@ -127,6 +169,45 @@ export default function Vendas() {
           <div className={`text-2xl font-bold ${totalLucro >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>R$ {totalLucro.toLocaleString('pt-BR')}</div>
         </div>
       </div>
+
+      {/* Comparativo mês a mês — só no modo Relatório */}
+      {filtroTipo === 'relatorio' && breakdownMensal.length > 0 && (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
+            <FileBarChart size={15} className="text-purple-600" />
+            <span className="text-sm font-semibold text-slate-700">Comparativo mês a mês</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  {['Mês','Vendas','Faturamento','Lucro Líquido'].map(h => (
+                    <th key={h} className="text-left px-4 py-2 text-xs font-semibold text-slate-500 uppercase whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {breakdownMensal.map(b => (
+                  <tr key={b.mes} className="hover:bg-slate-50">
+                    <td className="px-4 py-2.5 font-medium text-slate-700">{MESES_CURTOS[b.mes]}/{anoSel}</td>
+                    <td className="px-4 py-2.5 text-slate-600">{b.qtd}</td>
+                    <td className="px-4 py-2.5 font-semibold text-slate-800 whitespace-nowrap">R$ {b.faturamento.toLocaleString('pt-BR')}</td>
+                    <td className={`px-4 py-2.5 font-bold whitespace-nowrap ${b.lucro >= 0 ? 'text-green-600' : 'text-red-600'}`}>R$ {b.lucro.toLocaleString('pt-BR')}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="bg-slate-50 border-t-2 border-slate-200 font-bold">
+                  <td className="px-4 py-2.5 text-slate-700">Total</td>
+                  <td className="px-4 py-2.5 text-slate-700">{filtrados.length}</td>
+                  <td className="px-4 py-2.5 text-slate-800 whitespace-nowrap">R$ {totalFaturamento.toLocaleString('pt-BR')}</td>
+                  <td className={`px-4 py-2.5 whitespace-nowrap ${totalLucro >= 0 ? 'text-green-600' : 'text-red-600'}`}>R$ {totalLucro.toLocaleString('pt-BR')}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      )}
 
       {filtrados.length === 0 ? (
         <div className="bg-white rounded-xl p-12 text-center border border-slate-200 text-slate-400 text-sm">Nenhuma venda no período</div>
