@@ -73,7 +73,7 @@ export default function VeiculoForm() {
       id: uuid(), local: '', servico: '', valor: 0,
       tipoServico: 'mecanica', data: new Date().toISOString().split('T')[0]
     }
-    set('servicosPreparacao', [...(form.servicosPreparacao || []), novo])
+    set('servicosPreparacao', [novo, ...(form.servicosPreparacao || [])])
   }
   const updateServico = (sid: string, k: keyof ServicoPreparacao, v: unknown) => {
     set('servicosPreparacao', (form.servicosPreparacao || []).map(s => s.id === sid ? { ...s, [k]: v } : s))

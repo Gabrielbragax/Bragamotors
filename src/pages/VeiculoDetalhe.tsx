@@ -52,7 +52,7 @@ export default function VeiculoDetalhe() {
 
   const addPosVenda = () => {
     const novo: ServicoPosVenda = { id: uuid(), local: '', servico: '', valor: 0, data: new Date().toISOString().split('T')[0] }
-    updateVeiculo({ ...v, servicosPosVenda: [...v.servicosPosVenda, novo] })
+    updateVeiculo({ ...v, servicosPosVenda: [novo, ...v.servicosPosVenda] })
   }
   const updatePosVenda = (sid: string, k: keyof ServicoPosVenda, val: unknown) => {
     updateVeiculo({ ...v, servicosPosVenda: v.servicosPosVenda.map(s => s.id === sid ? { ...s, [k]: val } : s) })
