@@ -319,12 +319,12 @@ export default function VeiculoForm() {
           {/* PREPARAÇÃO */}
           {tab === 'preparacao' && (
             <div className="space-y-4">
-              {form.status === 'vendido' ? (
+              {form.status === 'vendido' && (
                 <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg border border-blue-200 text-blue-700 text-sm">
-                  <AlertCircle size={16} /> Veículo vendido. Use a aba Pós-Venda no detalhe do veículo.
+                  <AlertCircle size={16} /> Veículo já vendido — pode continuar adicionando serviços de preparação normalmente, o custo entra no cálculo de lucro do mesmo jeito.
                 </div>
-              ) : (
-                <>
+              )}
+              <>
                   <div className="flex justify-between items-center">
                     <div>
                       <div className="text-sm text-slate-500">Total em preparação</div>
@@ -381,8 +381,7 @@ export default function VeiculoForm() {
                       </div>
                     ))}
                   </div>
-                </>
-              )}
+              </>
             </div>
           )}
 
