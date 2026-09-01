@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useStore } from '../store/useStore'
-import { Car, TrendingUp, Clock, DollarSign, AlertCircle, CheckCircle, Target, Edit2, Save, UserCheck, Trophy, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Car, TrendingUp, Clock, DollarSign, AlertCircle, CheckCircle, Target, Edit2, Save, ChevronLeft, ChevronRight } from 'lucide-react'
 import { differenceInDays } from 'date-fns'
 import { Link } from 'react-router-dom'
 import NumInput from '../components/NumInput'
@@ -106,19 +106,6 @@ export default function Dashboard() {
   }))
   const boletosPagosMesValor = boletosPagosMes.reduce((a, b) => a + b.valor, 0)
 
-  // Ranking de vendedores do mês
-  const rankingVendedores = (() => {
-    const mapa: Record<string, { nome: string; qtd: number; faturamento: number }> = {}
-    vendidosMes.forEach(v => {
-      const nome = v.venda?.vendedor
-      if (!nome) return
-      if (!mapa[nome]) mapa[nome] = { nome, qtd: 0, faturamento: 0 }
-      mapa[nome].qtd++
-      mapa[nome].faturamento += v.venda?.valorVenda || 0
-    })
-    return Object.values(mapa).sort((a, b) => b.qtd - a.qtd || b.faturamento - a.faturamento).slice(0, 3)
-  })()
-
   const boletosHoje = veiculos.flatMap(v =>
     (v.venda?.boletos || []).filter(b => {
       if (b.pago) return false
@@ -161,7 +148,7 @@ export default function Dashboard() {
       {!noMesAtual && (
         <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
           <Clock size={13} />
-          Vendas, faturamento, lucro, boletos e ranking abaixo são de <strong>{MESES[mesSel]}/{anoSel}</strong> — Em Estoque, Em Preparação e Custo do Estoque sempre mostram a situação atual.
+          Vendas, faturamento, lucro e boletos abaixo são de <strong>{MESES[mesSel]}/{anoSel}</strong> — Em Estoque, Em Preparação e Custo do Estoque sempre mostram a situação atual.
         </div>
       )}
 
@@ -309,49 +296,6 @@ export default function Dashboard() {
           <div className="text-xl font-bold text-blue-700">R$ {boletosPagosMesValor.toLocaleString('pt-BR')}</div>
           <div className="text-xs text-slate-400 mt-1">{boletosPagosMes.length} boleto{boletosPagosMes.length !== 1 ? 's' : ''} recebido{boletosPagosMes.length !== 1 ? 's' : ''} no mês</div>
         </Link>
-      </div>
-
-      {/* Top Vendedores do Mês */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200">
-        <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-2">
-          <Trophy className="text-yellow-500" size={18} />
-          <h2 className="font-semibold text-slate-700">Top Vendedores — {MESES[mesSel]}</h2>
-        </div>
-        {rankingVendedores.length === 0 ? (
-          <div className="px-5 py-6 text-center text-slate-400 text-sm">
-            <UserCheck className="mx-auto mb-2 text-slate-300" size={28} />
-            Nenhuma venda registrada no mês
-          </div>
-        ) : (
-          <div className="p-4 flex flex-col sm:flex-row gap-3">
-            {rankingVendedores.map((v, i) => {
-              const medalha = i === 0 ? { bg: 'bg-yellow-400', text: 'text-yellow-900', emoji: '🥇' }
-                : i === 1 ? { bg: 'bg-slate-300', text: 'text-slate-700', emoji: '🥈' }
-                : { bg: 'bg-amber-600', text: 'text-white', emoji: '🥉' }
-              return (
-                <div key={v.nome} className={`flex-1 rounded-xl p-4 border ${i === 0 ? 'border-yellow-300 bg-yellow-50' : 'border-slate-200 bg-slate-50'}`}>
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="text-xl">{medalha.emoji}</span>
-                    <div>
-                      <div className="font-bold text-slate-800 text-sm">{v.nome}</div>
-                      <div className="text-xs text-slate-400">{i + 1}º lugar</div>
-                    </div>
-                  </div>
-                  <div className="flex items-end justify-between">
-                    <div>
-                      <div className="text-2xl font-bold text-slate-800">{v.qtd}</div>
-                      <div className="text-xs text-slate-400">venda{v.qtd !== 1 ? 's' : ''}</div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm font-bold text-green-600">R$ {v.faturamento.toLocaleString('pt-BR')}</div>
-                      <div className="text-xs text-slate-400">faturado</div>
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
       </div>
 
       {/* Veículos mais tempo em estoque */}
