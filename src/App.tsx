@@ -8,11 +8,7 @@ import VeiculoDetalhe from './pages/VeiculoDetalhe'
 import Vendas from './pages/Vendas'
 import Clientes from './pages/Clientes'
 import Boletos from './pages/Boletos'
-import Marketing from './pages/Marketing'
-import Vendedores from './pages/Vendedores'
 import EstoqueImprimir from './pages/EstoqueImprimir'
-import Relatorios from './pages/Relatorios'
-import Pesquisa from './pages/Pesquisa'
 import { useStore } from './store/useStore'
 
 function AppContent() {
@@ -46,12 +42,8 @@ function AppContent() {
           <Route path="/estoque/:id" element={<VeiculoDetalhe />} />
           <Route path="/estoque/:id/editar" element={<VeiculoForm />} />
           <Route path="/vendas" element={<Vendas />} />
-          <Route path="/vendedores" element={<Vendedores />} />
           <Route path="/clientes" element={<Clientes />} />
           <Route path="/boletos" element={<Boletos />} />
-          <Route path="/marketing" element={<Marketing />} />
-          <Route path="/relatorios" element={<Relatorios />} />
-          <Route path="/pesquisa" element={<Pesquisa />} />
         </Routes>
       </Layout>
     </BrowserRouter>

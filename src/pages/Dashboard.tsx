@@ -303,13 +303,10 @@ export default function Dashboard() {
       </div>
 
       {/* Top Vendedores do Mês */}
-      <Link to="/vendedores" className="block bg-white rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
-        <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Trophy className="text-yellow-500" size={18} />
-            <h2 className="font-semibold text-slate-700">Top Vendedores — {MESES[mesSel]}</h2>
-          </div>
-          <span className="text-xs text-blue-600">Ver todos →</span>
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200">
+        <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-2">
+          <Trophy className="text-yellow-500" size={18} />
+          <h2 className="font-semibold text-slate-700">Top Vendedores — {MESES[mesSel]}</h2>
         </div>
         {rankingVendedores.length === 0 ? (
           <div className="px-5 py-6 text-center text-slate-400 text-sm">
@@ -346,7 +343,7 @@ export default function Dashboard() {
             })}
           </div>
         )}
-      </Link>
+      </div>
 
       {/* Veículos mais tempo em estoque */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200">

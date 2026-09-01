@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
-import { ShoppingCart, Users, BarChart3, Menu, X, DollarSign, Megaphone, UserCheck, ClipboardList, Search, Car } from 'lucide-react'
+import { ShoppingCart, Users, BarChart3, Menu, X, DollarSign, Car } from 'lucide-react'
 import { useState } from 'react'
 import { useStore } from '../store/useStore'
 
@@ -7,12 +7,8 @@ const navItems = [
   { to: '/', icon: BarChart3, label: 'Dashboard' },
   { to: '/estoque', icon: Car, label: 'Estoque' },
   { to: '/vendas', icon: ShoppingCart, label: 'Vendas' },
-  { to: '/vendedores', icon: UserCheck, label: 'Vendedores' },
   { to: '/clientes', icon: Users, label: 'Clientes' },
   { to: '/boletos', icon: DollarSign, label: 'Boletos' },
-  { to: '/marketing', icon: Megaphone, label: 'Marketing' },
-  { to: '/relatorios', icon: ClipboardList, label: 'Relatórios' },
-  { to: '/pesquisa', icon: Search, label: 'Pesquisa' },
 ]
 
 export default function Layout({ children }: { children: React.ReactNode }) {
