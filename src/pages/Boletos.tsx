@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useStore } from '../store/useStore'
 import { differenceInDays } from 'date-fns'
-import { AlertCircle, CheckCircle, Clock, Edit2, Save, Plus, FileText, X, User, Car, ChevronDown, ChevronUp, MessageCircle, Trophy, Printer, MessageSquareText } from 'lucide-react'
+import { AlertCircle, CheckCircle, Clock, Edit2, Save, Plus, FileText, X, User, Car, ChevronDown, ChevronUp, MessageCircle, Trophy, Printer, MessageSquareText, TrendingUp } from 'lucide-react'
 import { v4 as uuid } from '../utils/uuid'
 import type { Boleto } from '../types'
 import NumInput from '../components/NumInput'
@@ -33,7 +33,7 @@ function corAtraso(dias: number): string {
 }
 
 export default function Boletos() {
-  const { veiculos, clientes, updateVeiculo, mensagemCobranca, setMensagemCobranca } = useStore()
+  const { veiculos, clientes, updateVeiculo, addCliente, updateCliente, mensagemCobranca, setMensagemCobranca } = useStore()
   const [filtro, setFiltro] = useState<StatusFiltro>('todos')
   const [busca, setBusca] = useState('')
   const [expandido, setExpandido] = useState<string | null>(null)
@@ -42,8 +42,11 @@ export default function Boletos() {
   const [editVencimento, setEditVencimento] = useState('')
   const [obsAlteracao, setObsAlteracao] = useState('')
   const [mostrarRanking, setMostrarRanking] = useState(false)
+  const [mostrarPrevisao, setMostrarPrevisao] = useState(false)
   const [editandoMensagem, setEditandoMensagem] = useState(false)
   const [rascunhoMensagem, setRascunhoMensagem] = useState(mensagemCobranca)
+  const [editandoTelefone, setEditandoTelefone] = useState<string | null>(null)
+  const [rascunhoTelefone, setRascunhoTelefone] = useState('')
 
   const hoje = new Date(); hoje.setHours(0, 0, 0, 0)
 
@@ -161,6 +164,47 @@ export default function Boletos() {
     return Object.values(mapa).sort((a, b) => b.saldoDevedor - a.saldoDevedor)
   })()
 
+  // Previsão de recebimento — agrupa todos os boletos em aberto por mês de vencimento.
+  // "Vencidos" junta tudo que já passou da data, sem importar quando venceu.
+  const MESES_CURTOS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+  type FaixaPrevisao = { chave: string; label: string; valor: number; qtd: number }
+  const previsaoRecebimento: FaixaPrevisao[] = (() => {
+    const mapa: Record<string, FaixaPrevisao> = {}
+    const chaveVencido = 'vencidos'
+    const hojeAno = hoje.getFullYear(), hojeMes = hoje.getMonth()
+
+    for (const item of porVeiculo) {
+      for (const b of item.boletos) {
+        if (b.pago || !b.vencimento) continue
+        const d = new Date(b.vencimento + 'T00:00:00')
+        let chave: string, label: string
+        if (d < hoje) {
+          chave = chaveVencido; label = 'Vencidos'
+        } else {
+          chave = `${d.getFullYear()}-${String(d.getMonth()).padStart(2, '0')}`
+          label = `${MESES_CURTOS[d.getMonth()]}/${d.getFullYear()}`
+        }
+        if (!mapa[chave]) mapa[chave] = { chave, label, valor: 0, qtd: 0 }
+        mapa[chave].valor += b.valor
+        mapa[chave].qtd++
+      }
+    }
+
+    // Garante os próximos 6 meses na lista mesmo sem boleto nenhum (mostra R$0 — melhor
+    // do que sumir do gráfico e parecer que "não tem previsão" pra aquele mês)
+    for (let i = 0; i < 6; i++) {
+      const m = (hojeMes + i) % 12
+      const a = hojeAno + Math.floor((hojeMes + i) / 12)
+      const chave = `${a}-${String(m).padStart(2, '0')}`
+      if (!mapa[chave]) mapa[chave] = { chave, label: `${MESES_CURTOS[m]}/${a}`, valor: 0, qtd: 0 }
+    }
+
+    const vencidos = mapa[chaveVencido]
+    delete mapa[chaveVencido]
+    const futuros = Object.values(mapa).sort((a, b) => a.chave.localeCompare(b.chave)).slice(0, 6)
+    return vencidos ? [vencidos, ...futuros] : futuros
+  })()
+
   const updateBoleto = (veiculoId: string, boletoId: string, updates: Partial<Boleto>, obs?: string) => {
     const v = veiculos.find(x => x.id === veiculoId)
     if (!v || !v.venda) return
@@ -177,6 +221,18 @@ export default function Boletos() {
     if (!v || !v.venda) return
     const novo: Boleto = { id: uuid(), valor: 0, vencimento: '', pago: false }
     updateVeiculo({ ...v, venda: { ...v.venda, boletos: [...(v.venda.boletos || []), novo] } })
+  }
+
+  /** Salva o telefone do cliente (cria o cadastro se ele só existia dentro da venda). */
+  const salvarTelefoneCliente = async (veiculoId: string, nome: string, cpf: string, telefone: string) => {
+    if (!telefone.trim()) { setEditandoTelefone(null); return }
+    const existente = clientes.find(c => c.cpf === cpf)
+    if (existente) {
+      await updateCliente({ ...existente, telefone })
+    } else if (cpf) {
+      await addCliente({ id: uuid(), nome, cpf, telefone, veiculosComprados: [veiculoId] })
+    }
+    setEditandoTelefone(null)
   }
 
   const statusConfig: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
@@ -199,11 +255,45 @@ export default function Boletos() {
             className="inline-flex items-center gap-2 border border-slate-200 text-slate-600 hover:bg-slate-50 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
             <Trophy size={16} /> {mostrarRanking ? 'Ocultar' : 'Ver'} Ranking
           </button>
+          <button onClick={() => setMostrarPrevisao(m => !m)}
+            className="inline-flex items-center gap-2 border border-slate-200 text-slate-600 hover:bg-slate-50 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+            <TrendingUp size={16} /> {mostrarPrevisao ? 'Ocultar' : 'Ver'} Previsão
+          </button>
           <Link to="/boletos/imprimir" className="inline-flex items-center gap-2 border border-slate-200 text-slate-600 hover:bg-slate-50 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
             <Printer size={16} /> Imprimir Lista
           </Link>
         </div>
       </div>
+
+      {/* Previsão de recebimento */}
+      {mostrarPrevisao && (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
+            <TrendingUp size={15} className="text-emerald-600" />
+            <span className="text-sm font-semibold text-slate-700">Previsão de Recebimento</span>
+          </div>
+          <div className="p-4 space-y-3">
+            {(() => {
+              const maxValor = Math.max(1, ...previsaoRecebimento.map(f => f.valor))
+              return previsaoRecebimento.map(f => (
+                <div key={f.chave} className="flex items-center gap-3">
+                  <div className={`w-20 shrink-0 text-xs font-semibold ${f.chave === 'vencidos' ? 'text-red-600' : 'text-slate-600'}`}>{f.label}</div>
+                  <div className="flex-1 h-6 bg-slate-100 rounded-md overflow-hidden">
+                    <div
+                      className={`h-full rounded-md flex items-center justify-end px-2 ${f.chave === 'vencidos' ? 'bg-red-500' : 'bg-emerald-500'}`}
+                      style={{ width: `${Math.max(4, (f.valor / maxValor) * 100)}%` }}
+                    >
+                      {f.valor > 0 && <span className="text-white text-xs font-bold whitespace-nowrap">R$ {f.valor.toLocaleString('pt-BR')}</span>}
+                    </div>
+                  </div>
+                  <div className="w-20 shrink-0 text-xs text-slate-400 text-right">{f.qtd} boleto{f.qtd !== 1 ? 's' : ''}</div>
+                </div>
+              ))
+            })()}
+            <div className="text-xs text-slate-400 pt-1">Só considera boletos em aberto (não pagos) com vencimento cadastrado.</div>
+          </div>
+        </div>
+      )}
 
       {/* Modal editar mensagem de cobrança */}
       {editandoMensagem && (
@@ -392,10 +482,40 @@ export default function Boletos() {
                     {/* Info do cliente */}
                     <div className="flex flex-wrap gap-4 items-start justify-between">
                       <div className="space-y-1">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <User size={14} className="text-slate-500" />
                           <span className="font-semibold text-slate-800">{item.clienteNome}</span>
                           {item.clienteCpf && <span className="text-xs text-slate-500">CPF: {item.clienteCpf}</span>}
+                          {item.clienteTelefone ? (
+                            <span className="text-xs text-slate-500">📱 {item.clienteTelefone}</span>
+                          ) : editandoTelefone === item.veiculoId ? (
+                            <span className="flex items-center gap-1">
+                              <input
+                                autoFocus
+                                className="input !w-40 !py-1 text-xs"
+                                value={rascunhoTelefone}
+                                onChange={e => setRascunhoTelefone(e.target.value)}
+                                placeholder="(19) 99999-9999"
+                                onKeyDown={e => e.key === 'Enter' && salvarTelefoneCliente(item.veiculoId, item.clienteNome, item.clienteCpf, rascunhoTelefone)}
+                              />
+                              <button
+                                onClick={() => salvarTelefoneCliente(item.veiculoId, item.clienteNome, item.clienteCpf, rascunhoTelefone)}
+                                className="p-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                              >
+                                <Save size={12} />
+                              </button>
+                              <button onClick={() => setEditandoTelefone(null)} className="p-1 text-slate-400 hover:text-slate-600">
+                                <X size={12} />
+                              </button>
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => { setEditandoTelefone(item.veiculoId); setRascunhoTelefone('') }}
+                              className="text-xs text-blue-600 hover:underline"
+                            >
+                              + adicionar telefone
+                            </button>
+                          )}
                         </div>
                         <div className="text-sm text-slate-500">
                           Saldo devedor: <span className="font-bold text-red-600">R$ {item.saldoDevedor.toLocaleString('pt-BR')}</span>

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useStore } from '../store/useStore'
 import type { Veiculo, ServicoPreparacao, AquisicaoType, DocumentType, TipoServico } from '../types'
-import { OPCIONAIS_DISPONIVEIS } from '../types'
+import { OPCIONAIS_DISPONIVEIS, TIPO_SERVICO_LABELS } from '../types'
 import { ChevronLeft, Plus, Trash2, Upload, Check, AlertCircle, Percent } from 'lucide-react'
 import { v4 as uuid } from '../utils/uuid'
 import BrandModelSelector from '../components/BrandModelSelector'
@@ -14,9 +14,6 @@ const AQUISICAO_LABELS: Record<AquisicaoType, string> = {
 }
 const DOC_LABELS: Record<DocumentType, string> = {
   transferencia: 'Transferência', procuracao: 'Procuração', renave: 'Renave'
-}
-const TIPO_SERVICO_LABELS: Record<TipoServico, string> = {
-  funilaria: 'Funilaria', mecanica: 'Mecânica', estetica: 'Estética', eletrica: 'Elétrica', outros: 'Outros'
 }
 
 function fileToBase64(file: File): Promise<string> {

@@ -5,6 +5,7 @@ import { ChevronLeft, Edit, CheckCircle, Plus, Trash2, Upload, TrendingUp, User,
 import { differenceInDays } from 'date-fns'
 import { v4 as uuid } from '../utils/uuid'
 import type { Venda, FormaPagamento, FormaPgto, ServicoPosVenda, Boleto, ClienteVenda, CartaoCredito } from '../types'
+import { TIPO_SERVICO_LABELS } from '../types'
 import NumInput from '../components/NumInput'
 
 
@@ -256,7 +257,7 @@ export default function VeiculoDetalhe() {
                       <div key={s.id} className="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-2 text-sm">
                         <div>
                           <span className="font-medium">{s.local}</span> — {s.servico}
-                          <span className="ml-2 text-xs text-slate-400">{s.tipoServico}</span>
+                          <span className="ml-2 text-xs text-slate-400">{TIPO_SERVICO_LABELS[s.tipoServico]}</span>
                         </div>
                         <div className="flex items-center gap-3">
                           {s.arquivoNome && <a href={s.arquivo} download={s.arquivoNome} className="text-xs text-blue-600 hover:underline">{s.arquivoNome}</a>}

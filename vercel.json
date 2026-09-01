@@ -3,6 +3,7 @@
     { "source": "/((?!api/).*)", "destination": "/" }
   ],
   "crons": [
-    { "path": "/api/check-boletos", "schedule": "0 11 * * *" }
+    { "path": "/api/check-boletos", "schedule": "0 11 * * *" },
+    { "path": "/api/backup-diario", "schedule": "0 10 * * *" }
   ]
 }

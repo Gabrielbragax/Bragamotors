@@ -1,7 +1,10 @@
 export type DocumentType = 'transferencia' | 'procuracao' | 'renave'
 export type AquisicaoType = 'troca' | 'portal_online' | 'porta_loja' | 'repasse'
 export type VeiculoStatus = 'preparacao' | 'estoque' | 'vendido'
-export type TipoServico = 'funilaria' | 'mecanica' | 'estetica' | 'eletrica' | 'outros'
+export type TipoServico = 'funilaria' | 'mecanica' | 'estetica' | 'eletrica' | 'trafego_pago' | 'outros'
+export const TIPO_SERVICO_LABELS: Record<TipoServico, string> = {
+  funilaria: 'Funilaria', mecanica: 'Mecânica', estetica: 'Estética', eletrica: 'Elétrica', trafego_pago: 'Tráfego Pago', outros: 'Outros',
+}
 export type FormaPagamento = 'troca_financiamento' | 'entrada_financiamento' | 'financiamento' | 'avista' | 'entrada_boleto' | 'troca_boleto' | 'misto'
 export type FormaPgto = 'financiamento' | 'troca' | 'avista' | 'entrada' | 'boleto' | 'cartao'
 
