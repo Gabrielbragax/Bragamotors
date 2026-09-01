@@ -8,6 +8,7 @@ import VeiculoDetalhe from './pages/VeiculoDetalhe'
 import Vendas from './pages/Vendas'
 import Clientes from './pages/Clientes'
 import Boletos from './pages/Boletos'
+import BoletosImprimir from './pages/BoletosImprimir'
 import EstoqueImprimir from './pages/EstoqueImprimir'
 import { useStore } from './store/useStore'
 
@@ -44,6 +45,7 @@ function AppContent() {
           <Route path="/vendas" element={<Vendas />} />
           <Route path="/clientes" element={<Clientes />} />
           <Route path="/boletos" element={<Boletos />} />
+          <Route path="/boletos/imprimir" element={<BoletosImprimir />} />
         </Routes>
       </Layout>
     </BrowserRouter>

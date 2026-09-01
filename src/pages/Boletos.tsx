@@ -1,12 +1,27 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useStore } from '../store/useStore'
 import { differenceInDays } from 'date-fns'
-import { AlertCircle, CheckCircle, Clock, Edit2, Save, Plus, FileText, X, User, Car, ChevronDown, ChevronUp } from 'lucide-react'
+import { AlertCircle, CheckCircle, Clock, Edit2, Save, Plus, FileText, X, User, Car, ChevronDown, ChevronUp, MessageCircle, Trophy, Printer } from 'lucide-react'
 import { v4 as uuid } from '../utils/uuid'
 import type { Boleto } from '../types'
 import NumInput from '../components/NumInput'
 
 type StatusFiltro = 'todos' | 'vencido' | 'hoje' | 'aberto' | 'pago'
+
+/** Link do WhatsApp já com a mensagem pronta — limpa o telefone e garante o DDI 55. */
+function linkWhatsapp(telefone: string, mensagem: string): string {
+  const digitos = telefone.replace(/\D/g, '')
+  const comDDI = digitos.startsWith('55') ? digitos : `55${digitos}`
+  return `https://wa.me/${comDDI}?text=${encodeURIComponent(mensagem)}`
+}
+
+/** Cor do badge escala conforme os dias de atraso — atraso longo chama mais atenção. */
+function corAtraso(dias: number): string {
+  if (dias > 30) return 'bg-red-900 text-white'
+  if (dias > 10) return 'bg-red-600 text-white'
+  return 'bg-red-100 text-red-700'
+}
 
 export default function Boletos() {
   const { veiculos, clientes, updateVeiculo } = useStore()
@@ -17,6 +32,7 @@ export default function Boletos() {
   const [editValor, setEditValor] = useState(0)
   const [editVencimento, setEditVencimento] = useState('')
   const [obsAlteracao, setObsAlteracao] = useState('')
+  const [mostrarRanking, setMostrarRanking] = useState(false)
 
   const hoje = new Date(); hoje.setHours(0, 0, 0, 0)
 
@@ -44,10 +60,13 @@ export default function Boletos() {
     placa: string
     clienteNome: string
     clienteCpf: string
+    clienteTelefone: string
     boletos: Boleto[]
     saldoDevedor: number
     temVencido: boolean
     temHoje: boolean
+    diasAtrasoMax: number
+    urgencia: number
     contratoArquivo?: string
     contratoArquivoNome?: string
   }
@@ -60,23 +79,40 @@ export default function Boletos() {
       const clienteCad = clientes.find(c => c.cpf === clienteVenda?.cpf)
       const nomeCliente = clienteVenda?.nome || clienteCad?.nome || 'Cliente não informado'
       const cpfCliente = clienteVenda?.cpf || clienteCad?.cpf || ''
+      const telefoneCliente = clienteCad?.telefone || ''
       const saldoDevedor = boletos.filter(b => !b.pago).reduce((a, b) => a + b.valor, 0)
       const temVencido = boletos.some(b => getBoletoStatus(b) === 'vencido')
       const temHoje = boletos.some(b => getBoletoStatus(b) === 'hoje')
+
+      // Urgência: quanto mais negativo, mais urgente. Vencido = -dias de atraso (mais
+      // atrasado primeiro). Em aberto = +dias até vencer (mais próximo primeiro).
+      // Quitado (sem boleto em aberto) sempre por último.
+      const abertos = boletos.filter(b => !b.pago && b.vencimento)
+      const diasAtrasoMax = abertos.length
+        ? Math.max(0, ...abertos.map(b => differenceInDays(hoje, new Date(b.vencimento))))
+        : 0
+      const urgencia = abertos.length
+        ? Math.min(...abertos.map(b => differenceInDays(new Date(b.vencimento), hoje)))
+        : Infinity
+
       return {
         veiculoId: v.id,
         veiculo: `${v.marca} ${v.modelo} ${v.ano}`,
         placa: v.placa,
         clienteNome: nomeCliente,
         clienteCpf: cpfCliente,
+        clienteTelefone: telefoneCliente,
         boletos,
         saldoDevedor,
         temVencido,
         temHoje,
+        diasAtrasoMax,
+        urgencia,
         contratoArquivo: v.venda?.contratoArquivo,
         contratoArquivoNome: v.venda?.contratoArquivoNome,
       }
     })
+    .sort((a, b) => a.urgencia - b.urgencia)
 
   // Counts para os filtros (por boleto individual)
   const todosBoletosFlat = porVeiculo.flatMap(v => v.boletos)
@@ -96,6 +132,23 @@ export default function Boletos() {
     const matchFiltro = filtro === 'todos' || item.boletos.some(b => getBoletoStatus(b) === filtro)
     return matchBusca && matchFiltro
   })
+
+  // Ranking de inadimplência — agrupa por cliente (não por veículo), somando todos os
+  // carros financiados que a mesma pessoa tenha. Sempre considera todos os dados, não
+  // só o que está filtrado na tela.
+  type RankingCliente = { chave: string; nome: string; cpf: string; saldoDevedor: number; boletosVencidos: number; veiculos: string[] }
+  const rankingInadimplencia: RankingCliente[] = (() => {
+    const mapa: Record<string, RankingCliente> = {}
+    for (const item of porVeiculo) {
+      if (item.saldoDevedor <= 0) continue
+      const chave = item.clienteCpf || item.clienteNome
+      if (!mapa[chave]) mapa[chave] = { chave, nome: item.clienteNome, cpf: item.clienteCpf, saldoDevedor: 0, boletosVencidos: 0, veiculos: [] }
+      mapa[chave].saldoDevedor += item.saldoDevedor
+      mapa[chave].boletosVencidos += item.boletos.filter(b => getBoletoStatus(b) === 'vencido').length
+      mapa[chave].veiculos.push(item.veiculo)
+    }
+    return Object.values(mapa).sort((a, b) => b.saldoDevedor - a.saldoDevedor)
+  })()
 
   const updateBoleto = (veiculoId: string, boletoId: string, updates: Partial<Boleto>, obs?: string) => {
     const v = veiculos.find(x => x.id === veiculoId)
@@ -124,7 +177,49 @@ export default function Boletos() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold text-slate-800">Boletos</h1>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <h1 className="text-2xl font-bold text-slate-800">Boletos</h1>
+        <div className="flex gap-2">
+          <button onClick={() => setMostrarRanking(m => !m)}
+            className="inline-flex items-center gap-2 border border-slate-200 text-slate-600 hover:bg-slate-50 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+            <Trophy size={16} /> {mostrarRanking ? 'Ocultar' : 'Ver'} Ranking
+          </button>
+          <Link to="/boletos/imprimir" className="inline-flex items-center gap-2 border border-slate-200 text-slate-600 hover:bg-slate-50 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+            <Printer size={16} /> Imprimir Lista
+          </Link>
+        </div>
+      </div>
+
+      {/* Ranking de inadimplência */}
+      {mostrarRanking && (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
+            <Trophy size={15} className="text-amber-600" />
+            <span className="text-sm font-semibold text-slate-700">Ranking de Inadimplência — quem mais deve</span>
+          </div>
+          {rankingInadimplencia.length === 0 ? (
+            <div className="px-4 py-6 text-center text-slate-400 text-sm">Ninguém com saldo devedor no momento 🎉</div>
+          ) : (
+            <div className="divide-y divide-slate-50">
+              {rankingInadimplencia.map((r, i) => (
+                <div key={r.chave} className="flex items-center gap-3 px-4 py-3">
+                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                    i === 0 ? 'bg-red-600 text-white' : i === 1 ? 'bg-red-400 text-white' : i === 2 ? 'bg-red-200 text-red-800' : 'bg-slate-100 text-slate-500'
+                  }`}>{i + 1}º</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-slate-800 text-sm truncate">{r.nome}</div>
+                    <div className="text-xs text-slate-400 truncate">{r.cpf || '—'} • {r.veiculos.join(', ')}</div>
+                  </div>
+                  {r.boletosVencidos > 0 && (
+                    <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-semibold shrink-0">{r.boletosVencidos} vencido{r.boletosVencidos !== 1 ? 's' : ''}</span>
+                  )}
+                  <div className="font-bold text-red-600 text-sm shrink-0">R$ {r.saldoDevedor.toLocaleString('pt-BR')}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Alertas */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -196,8 +291,8 @@ export default function Boletos() {
                     {/* Situação */}
                     <div className="hidden sm:flex col-span-2 justify-center">
                       {item.temVencido ? (
-                        <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700">
-                          <AlertCircle size={11} /> Vencido
+                        <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${corAtraso(item.diasAtrasoMax)}`}>
+                          <AlertCircle size={11} /> Vencido {item.diasAtrasoMax > 10 ? `— ${item.diasAtrasoMax}d` : ''}
                         </span>
                       ) : item.temHoje ? (
                         <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">
@@ -233,7 +328,7 @@ export default function Boletos() {
                       <span className={`font-bold text-sm ${item.saldoDevedor > 0 ? 'text-red-600' : 'text-green-600'}`}>
                         R$ {item.saldoDevedor.toLocaleString('pt-BR')}
                       </span>
-                      {item.temVencido && <span className="text-xs text-red-600 font-semibold">Vencido</span>}
+                      {item.temVencido && <span className={`text-xs font-semibold px-1.5 rounded ${corAtraso(item.diasAtrasoMax)}`}>Vencido {item.diasAtrasoMax > 10 ? `${item.diasAtrasoMax}d` : ''}</span>}
                     </div>
 
                     <div className="col-span-12 sm:col-span-12 flex justify-end -mt-1 sm:hidden">
@@ -290,7 +385,9 @@ export default function Boletos() {
                                     const isProximo = diasRestantes !== null && diasRestantes <= 5
                                     const cfg = isProximo
                                       ? { label: diasRestantes === 0 ? 'Vence hoje' : `Vence em ${diasRestantes}d`, color: diasRestantes <= 2 ? 'bg-orange-100 text-orange-700' : 'bg-yellow-100 text-yellow-700', icon: <Clock size={12} /> }
-                                      : statusConfig[status]
+                                      : status === 'vencido'
+                                        ? { ...statusConfig[status], color: corAtraso(diasAtraso) }
+                                        : statusConfig[status]
                                     return (
                                       <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${cfg.color}`}>
                                         {cfg.icon}
@@ -360,6 +457,15 @@ export default function Boletos() {
 
                               {!isEdit && (
                                 <div className="flex items-center gap-2">
+                                  {!b.pago && item.clienteTelefone && (
+                                    <a
+                                      href={linkWhatsapp(item.clienteTelefone, `Olá ${item.clienteNome.split(' ')[0]}, tudo bem? Aqui é da BragaMotors. Identificamos que o boleto de R$ ${b.valor.toLocaleString('pt-BR')} referente ao seu ${item.veiculo} ${status === 'vencido' ? `venceu em ${new Date(b.vencimento + 'T12:00').toLocaleDateString('pt-BR')}` : `vence em ${new Date(b.vencimento + 'T12:00').toLocaleDateString('pt-BR')}`}. Poderia verificar a situação? Qualquer dúvida estou à disposição!`)}
+                                      target="_blank" rel="noopener noreferrer"
+                                      className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-full font-semibold border bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
+                                    >
+                                      <MessageCircle size={13} /> Cobrar
+                                    </a>
+                                  )}
                                   <button
                                     onClick={() => updateBoleto(item.veiculoId, b.id, { pago: !b.pago, dataPagamento: !b.pago ? new Date().toISOString().split('T')[0] : undefined })}
                                     className={`text-xs px-3 py-1.5 rounded-full font-semibold transition-colors border ${b.pago ? 'bg-green-100 text-green-700 border-green-200 hover:bg-green-200' : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'}`}
