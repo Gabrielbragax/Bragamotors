@@ -125,6 +125,9 @@ export default async function handler(): Promise<Response> {
       botoes.push({ text: '💬 Cobrar agora', url: linkWhatsapp(i.telefone, msgWhats) })
     }
     botoes.push({ text: '✅ Dar baixa', callback_data: `pagar:${i.boletoId}` })
+    if (i.situacao === 'vencido') {
+      botoes.push({ text: '🕓 Atrasado', callback_data: `atrasado:${i.boletoId}` })
+    }
 
     const tgRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
       method: 'POST',

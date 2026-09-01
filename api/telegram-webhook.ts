@@ -1,7 +1,9 @@
-// Recebe os cliques nos botões do Telegram (webhook). Hoje só trata o botão
-// "Dar baixa" (callback_data = "pagar:<boletoId>") — marca aquele boleto específico
-// como pago direto no Supabase, sem precisar abrir o site, e edita a mensagem original
-// pra confirmar visualmente que a baixa foi dada.
+// Recebe os cliques nos botões do Telegram (webhook).
+// - "pagar:<boletoId>" (Dar baixa) — marca o boleto como pago direto no Supabase
+// - "atrasado:<boletoId>" (Atrasado) — só confirma que você viu e está de olho,
+//   sem mexer no status do boleto (continua em aberto, some da mensagem)
+// Em ambos os casos edita a mensagem original mostrando a confirmação e tira os
+// botões, pra evitar clique duplicado.
 
 interface Boleto {
   id: string
@@ -28,8 +30,8 @@ export default async function handler(req: Request): Promise<Response> {
   }
 
   // Confere que a chamada realmente veio do Telegram (ele manda esse header quando o
-  // webhook é registrado com secret_token) — evita que alguém dispare "baixa" chutando
-  // a URL sem ser o Telegram de verdade.
+  // webhook é registrado com secret_token) — evita que alguém dispare uma ação
+  // chutando a URL sem ser o Telegram de verdade.
   if (WEBHOOK_SECRET && req.headers.get('x-telegram-bot-api-secret-token') !== WEBHOOK_SECRET) {
     return new Response('unauthorized', { status: 401 })
   }
@@ -53,7 +55,21 @@ export default async function handler(req: Request): Promise<Response> {
     })
   }
 
-  if (action !== 'pagar' || !boletoId) {
+  const editarMensagem = async (sufixo: string) => {
+    if (!chatId || !messageId) return
+    await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/editMessageText`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        message_id: messageId,
+        text: `${textoOriginal}\n\n${sufixo}`,
+        parse_mode: 'Markdown',
+      }),
+    })
+  }
+
+  if ((action !== 'pagar' && action !== 'atrasado') || !boletoId) {
     await responderCallback('Ação não reconhecida')
     return new Response('ok')
   }
@@ -70,6 +86,15 @@ export default async function handler(req: Request): Promise<Response> {
 
   const v = row.data
   const boleto = (v.venda!.boletos || []).find(b => b.id === boletoId)!
+
+  if (action === 'atrasado') {
+    // Não mexe no boleto — só confirma que a pessoa viu e está acompanhando.
+    await responderCallback('🕓 Marcado como acompanhado')
+    await editarMensagem(`🕓 *Confirmado — ainda em atraso, acompanhando* (${new Date().toLocaleDateString('pt-BR')})`)
+    return new Response('ok')
+  }
+
+  // action === 'pagar'
   if (boleto.pago) {
     await responderCallback('Esse boleto já estava marcado como pago')
   } else {
@@ -82,21 +107,7 @@ export default async function handler(req: Request): Promise<Response> {
     })
     await responderCallback('✅ Baixa dada com sucesso!')
   }
-
-  // Edita a mensagem original pra mostrar que já foi resolvida e tira os botões,
-  // evitando clique duplicado.
-  if (chatId && messageId) {
-    await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/editMessageText`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chatId,
-        message_id: messageId,
-        text: `${textoOriginal}\n\n✅ *Baixa dada em ${new Date().toLocaleDateString('pt-BR')}*`,
-        parse_mode: 'Markdown',
-      }),
-    })
-  }
+  await editarMensagem(`✅ *Baixa dada em ${new Date().toLocaleDateString('pt-BR')}*`)
 
   return new Response('ok')
 }
