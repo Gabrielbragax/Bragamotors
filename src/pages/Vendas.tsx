@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useStore } from '../store/useStore'
 import { Link } from 'react-router-dom'
-import { TrendingUp, Car, DollarSign, Filter, FileBarChart } from 'lucide-react'
+import { TrendingUp, Car, DollarSign, Filter, FileBarChart, Wrench } from 'lucide-react'
 import type { Veiculo } from '../types'
 
 /** Lucro líquido de uma venda: desconta boletos (nunca contam como lucro), custo de
@@ -60,6 +60,7 @@ export default function Vendas() {
 
   const totalFaturamento = filtrados.reduce((a, v) => a + (v.venda?.valorVenda || 0), 0)
   const totalLucro = filtrados.reduce((a, v) => a + lucroLiquidoVenda(v), 0)
+  const totalPosVenda = filtrados.reduce((a, v) => a + v.servicosPosVenda.reduce((x, s) => x + s.valor, 0), 0)
 
   const periodoLabel =
     filtroTipo === 'mes' ? `${MESES_CURTOS[mesSel]}/${anoSel}` :
@@ -76,7 +77,8 @@ export default function Vendas() {
     })
     const fat = doMes.reduce((a, v) => a + (v.venda?.valorVenda || 0), 0)
     const luc = doMes.reduce((a, v) => a + lucroLiquidoVenda(v), 0)
-    return { mes: m, qtd: doMes.length, faturamento: fat, lucro: luc }
+    const posVenda = doMes.reduce((a, v) => a + v.servicosPosVenda.reduce((x, s) => x + s.valor, 0), 0)
+    return { mes: m, qtd: doMes.length, faturamento: fat, lucro: luc, posVenda }
   }) : []
 
   const anos = [now.getFullYear(), now.getFullYear() - 1, now.getFullYear() - 2]
@@ -163,7 +165,7 @@ export default function Vendas() {
       </div>
 
       {/* Cards resumo */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
           <div className="flex items-center gap-2 mb-1"><Car className="text-blue-500" size={18} /><span className="text-xs font-semibold text-slate-500">Vendas no período</span></div>
           <div className="text-2xl font-bold text-slate-800">{filtrados.length}</div>
@@ -175,6 +177,11 @@ export default function Vendas() {
         <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
           <div className="flex items-center gap-2 mb-1"><TrendingUp className="text-emerald-500" size={18} /><span className="text-xs font-semibold text-slate-500">Lucro líquido</span></div>
           <div className={`text-2xl font-bold ${totalLucro >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>R$ {totalLucro.toLocaleString('pt-BR')}</div>
+        </div>
+        <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
+          <div className="flex items-center gap-2 mb-1"><Wrench className="text-orange-500" size={18} /><span className="text-xs font-semibold text-slate-500">Pós-venda</span></div>
+          <div className="text-2xl font-bold text-orange-600">R$ {totalPosVenda.toLocaleString('pt-BR')}</div>
+          <div className="text-xs text-slate-400 mt-0.5">já descontado do lucro líquido</div>
         </div>
       </div>
 
@@ -189,7 +196,7 @@ export default function Vendas() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
-                  {['Mês','Vendas','Faturamento','Lucro Líquido'].map(h => (
+                  {['Mês','Vendas','Faturamento','Pós-Venda','Lucro Líquido'].map(h => (
                     <th key={h} className="text-left px-4 py-2 text-xs font-semibold text-slate-500 uppercase whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -200,6 +207,7 @@ export default function Vendas() {
                     <td className="px-4 py-2.5 font-medium text-slate-700">{MESES_CURTOS[b.mes]}/{anoSel}</td>
                     <td className="px-4 py-2.5 text-slate-600">{b.qtd}</td>
                     <td className="px-4 py-2.5 font-semibold text-slate-800 whitespace-nowrap">R$ {b.faturamento.toLocaleString('pt-BR')}</td>
+                    <td className="px-4 py-2.5 text-orange-600 whitespace-nowrap">R$ {b.posVenda.toLocaleString('pt-BR')}</td>
                     <td className={`px-4 py-2.5 font-bold whitespace-nowrap ${b.lucro >= 0 ? 'text-green-600' : 'text-red-600'}`}>R$ {b.lucro.toLocaleString('pt-BR')}</td>
                   </tr>
                 ))}
@@ -209,6 +217,7 @@ export default function Vendas() {
                   <td className="px-4 py-2.5 text-slate-700">Total</td>
                   <td className="px-4 py-2.5 text-slate-700">{filtrados.length}</td>
                   <td className="px-4 py-2.5 text-slate-800 whitespace-nowrap">R$ {totalFaturamento.toLocaleString('pt-BR')}</td>
+                  <td className="px-4 py-2.5 text-orange-600 whitespace-nowrap">R$ {totalPosVenda.toLocaleString('pt-BR')}</td>
                   <td className={`px-4 py-2.5 whitespace-nowrap ${totalLucro >= 0 ? 'text-green-600' : 'text-red-600'}`}>R$ {totalLucro.toLocaleString('pt-BR')}</td>
                 </tr>
               </tfoot>
@@ -225,7 +234,7 @@ export default function Vendas() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
-                  {['Data','Veículo','Vendedor','Forma','Venda','Custo','Lucro Bruto','Lucro Líq.','%'].map(h => (
+                  {['Data','Veículo','Vendedor','Forma','Venda','Custo','Pós-Venda','Lucro Bruto','Lucro Líq.','%'].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -261,7 +270,25 @@ export default function Vendas() {
                         </span>
                       </td>
                       <td className="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">R$ {v.venda!.valorVenda.toLocaleString('pt-BR')}</td>
-                      <td className="px-4 py-3 text-slate-500 whitespace-nowrap">R$ {(custo + cpv).toLocaleString('pt-BR')}</td>
+                      <td className="px-4 py-3 text-slate-500 whitespace-nowrap">R$ {custo.toLocaleString('pt-BR')}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {cpv > 0 ? (
+                          <div className="group relative inline-block">
+                            <span className="font-semibold text-orange-600 border-b border-dotted border-orange-400 cursor-help">R$ {cpv.toLocaleString('pt-BR')}</span>
+                            <div className="hidden group-hover:block absolute z-20 top-full left-0 mt-1 w-64 bg-slate-800 text-white text-xs rounded-lg shadow-lg p-3 space-y-1.5">
+                              <div className="font-semibold text-slate-300 uppercase text-[10px] tracking-wide mb-1">Serviços pós-venda</div>
+                              {v.servicosPosVenda.map(s => (
+                                <div key={s.id} className="flex justify-between gap-3">
+                                  <span className="truncate">{s.local || 'Local não informado'}{s.servico ? ` — ${s.servico}` : ''}</span>
+                                  <span className="font-semibold whitespace-nowrap">R$ {s.valor.toLocaleString('pt-BR')}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-slate-300">R$ 0</span>
+                        )}
+                      </td>
                       <td className={`px-4 py-3 font-semibold whitespace-nowrap ${lb >= 0 ? 'text-green-600' : 'text-red-600'}`}>R$ {lb.toLocaleString('pt-BR')}</td>
                       <td className={`px-4 py-3 font-bold whitespace-nowrap ${ll >= 0 ? 'text-green-600' : 'text-red-600'}`}>R$ {ll.toLocaleString('pt-BR')}</td>
                       <td className="px-4 py-3 whitespace-nowrap">
