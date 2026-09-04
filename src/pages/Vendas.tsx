@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useStore } from '../store/useStore'
 import { Link } from 'react-router-dom'
-import { TrendingUp, Car, DollarSign, Filter, FileBarChart, Wrench } from 'lucide-react'
+import { TrendingUp, Car, DollarSign, Filter, FileBarChart, Wrench, ChevronDown, ChevronUp } from 'lucide-react'
 import type { Veiculo } from '../types'
 
 /** Lucro líquido de uma venda: desconta boletos (nunca contam como lucro), custo de
@@ -29,6 +29,17 @@ const FORMA_LABELS: Record<string, string> = {
 
 const MESES_CURTOS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
 
+/** Algumas entradas antigas de pós-venda foram salvas como "DD/MM/AAAA" em vez do
+ *  formato ISO "AAAA-MM-DD" usado hoje — aceita os dois pra não quebrar a data. */
+function parseDataFlexivel(str?: string): Date | null {
+  if (!str) return null
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return new Date(str + 'T12:00')
+  const br = str.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+  if (br) return new Date(`${br[3]}-${br[2]}-${br[1]}T12:00`)
+  const d = new Date(str)
+  return isNaN(d.getTime()) ? null : d
+}
+
 export default function Vendas() {
   const veiculos = useStore(s => s.veiculos)
   const now = new Date()
@@ -37,6 +48,7 @@ export default function Vendas() {
   const [mesSel, setMesSel] = useState(now.getMonth())
   const [mesesRelatorio, setMesesRelatorio] = useState<number[]>([now.getMonth()])
   const [vendedorSel, setVendedorSel] = useState('todos')
+  const [mostrarPosVenda, setMostrarPosVenda] = useState(false)
 
   const toggleMesRelatorio = (m: number) => {
     setMesesRelatorio(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m].sort((a, b) => a - b))
@@ -61,6 +73,19 @@ export default function Vendas() {
   const totalFaturamento = filtrados.reduce((a, v) => a + (v.venda?.valorVenda || 0), 0)
   const totalLucro = filtrados.reduce((a, v) => a + lucroLiquidoVenda(v), 0)
   const totalPosVenda = filtrados.reduce((a, v) => a + v.servicosPosVenda.reduce((x, s) => x + s.valor, 0), 0)
+
+  // Lista detalhada de cada serviço pós-venda das vendas do período filtrado
+  const posVendaDetalhado = filtrados
+    .flatMap(v => v.servicosPosVenda.map(s => ({
+      veiculoId: v.id,
+      veiculo: `${v.marca} ${v.modelo}${v.versao ? ` ${v.versao}` : ''} ${v.ano}`,
+      placa: v.placa,
+      local: s.local,
+      servico: s.servico,
+      valor: s.valor,
+      data: s.data,
+    })))
+    .sort((a, b) => (parseDataFlexivel(b.data)?.getTime() || 0) - (parseDataFlexivel(a.data)?.getTime() || 0))
 
   const periodoLabel =
     filtroTipo === 'mes' ? `${MESES_CURTOS[mesSel]}/${anoSel}` :
@@ -178,12 +203,64 @@ export default function Vendas() {
           <div className="flex items-center gap-2 mb-1"><TrendingUp className="text-emerald-500" size={18} /><span className="text-xs font-semibold text-slate-500">Lucro líquido</span></div>
           <div className={`text-2xl font-bold ${totalLucro >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>R$ {totalLucro.toLocaleString('pt-BR')}</div>
         </div>
-        <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
-          <div className="flex items-center gap-2 mb-1"><Wrench className="text-orange-500" size={18} /><span className="text-xs font-semibold text-slate-500">Pós-venda</span></div>
+        <button
+          onClick={() => setMostrarPosVenda(m => !m)}
+          className={`bg-white rounded-xl p-4 border shadow-sm text-left transition-colors ${mostrarPosVenda ? 'border-orange-400 ring-2 ring-orange-100' : 'border-slate-200 hover:border-orange-200'}`}
+        >
+          <div className="flex items-center justify-between gap-2 mb-1">
+            <div className="flex items-center gap-2"><Wrench className="text-orange-500" size={18} /><span className="text-xs font-semibold text-slate-500">Pós-venda</span></div>
+            {mostrarPosVenda ? <ChevronUp size={14} className="text-slate-400" /> : <ChevronDown size={14} className="text-slate-400" />}
+          </div>
           <div className="text-2xl font-bold text-orange-600">R$ {totalPosVenda.toLocaleString('pt-BR')}</div>
-          <div className="text-xs text-slate-400 mt-0.5">já descontado do lucro líquido</div>
-        </div>
+          <div className="text-xs text-slate-400 mt-0.5">{mostrarPosVenda ? 'clique pra fechar' : 'clique pra ver detalhes'}</div>
+        </button>
       </div>
+
+      {/* Detalhe de todos os pós-venda do período */}
+      {mostrarPosVenda && (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
+            <Wrench size={15} className="text-orange-600" />
+            <span className="text-sm font-semibold text-slate-700">Pós-Venda — {periodoLabel}</span>
+          </div>
+          {posVendaDetalhado.length === 0 ? (
+            <div className="px-4 py-8 text-center text-slate-400 text-sm">Nenhum serviço pós-venda nesse período</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    {['Data', 'Veículo', 'Onde foi', 'Serviço', 'Valor', ''].map(h => (
+                      <th key={h} className="text-left px-4 py-2 text-xs font-semibold text-slate-500 uppercase whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {posVendaDetalhado.map((p, i) => (
+                    <tr key={i} className="hover:bg-slate-50">
+                      <td className="px-4 py-2.5 text-slate-500 whitespace-nowrap">{parseDataFlexivel(p.data)?.toLocaleDateString('pt-BR') || '—'}</td>
+                      <td className="px-4 py-2.5 text-slate-700">{p.veiculo} <span className="text-xs text-slate-400">({p.placa})</span></td>
+                      <td className="px-4 py-2.5 text-slate-600">{p.local || '—'}</td>
+                      <td className="px-4 py-2.5 text-slate-600">{p.servico || '—'}</td>
+                      <td className="px-4 py-2.5 font-semibold text-orange-600 whitespace-nowrap">R$ {p.valor.toLocaleString('pt-BR')}</td>
+                      <td className="px-4 py-2.5 whitespace-nowrap">
+                        <Link to={`/estoque/${p.veiculoId}`} className="text-xs text-blue-600 hover:underline">Ver veículo →</Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-slate-50 border-t-2 border-slate-200 font-bold">
+                    <td colSpan={4} className="px-4 py-2.5 text-slate-700">Total</td>
+                    <td className="px-4 py-2.5 text-orange-600 whitespace-nowrap">R$ {totalPosVenda.toLocaleString('pt-BR')}</td>
+                    <td />
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Comparativo mês a mês — só no modo Relatório */}
       {filtroTipo === 'relatorio' && breakdownMensal.length > 0 && (
