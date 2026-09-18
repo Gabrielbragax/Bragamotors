@@ -18,6 +18,16 @@ function fileToBase64(file: File): Promise<string> {
   })
 }
 
+/** Soma meses a uma data ISO (AAAA-MM-DD), prendendo o dia ao último dia do mês
+ *  de destino quando ele não existir (ex: 31/01 + 1 mês -> 28 ou 29/02). */
+function addMeses(dataISO: string, meses: number): string {
+  const [ano, mes, dia] = dataISO.split('-').map(Number)
+  const d = new Date(ano, mes - 1 + meses, 1)
+  const ultimoDia = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()
+  d.setDate(Math.min(dia, ultimoDia))
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 export default function VeiculoDetalhe() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -407,6 +417,17 @@ function VendaTab({ v, updateVeiculo, clientes, addCliente, updateCliente, vende
   }
   const remBoleto = (bid: string) => set('boletos', (venda.boletos || []).filter(b => b.id !== bid))
 
+  const [valorParcela, setValorParcela] = useState(0)
+  const [primeiroVencimento, setPrimeiroVencimento] = useState('')
+  const gerarParcelas = (qtd: number) => {
+    if (!valorParcela || !primeiroVencimento) return
+    const novos: Boleto[] = Array.from({ length: qtd }, (_, i) => ({
+      id: uuid(), valor: valorParcela, vencimento: addMeses(primeiroVencimento, i), pago: false,
+    }))
+    set('boletos', [...(venda.boletos || []), ...novos])
+    setValorParcela(0); setPrimeiroVencimento('')
+  }
+
   const uploadContrato = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return
     const b64 = await fileToBase64(file)
@@ -591,9 +612,34 @@ function VendaTab({ v, updateVeiculo, clientes, addCliente, updateCliente, vende
         <div className="bg-purple-50 rounded-xl border border-purple-200 p-4 space-y-3">
           <div className="flex justify-between items-center">
             <div className="text-sm font-semibold text-purple-800">📄 Boletos da Loja</div>
-            <button onClick={addBoleto} className="flex items-center gap-1 text-xs text-purple-700 hover:underline"><Plus size={12} /> Adicionar boleto</button>
+            <button onClick={addBoleto} className="flex items-center gap-1 text-xs text-purple-700 hover:underline"><Plus size={12} /> Adicionar boleto avulso</button>
           </div>
-          {(venda.boletos || []).length === 0 && <div className="text-xs text-slate-400">Clique em "Adicionar boleto" para incluir</div>}
+
+          {/* Gerar parcelas iguais em lote (12x / 24x / 36x) */}
+          <div className="bg-white rounded-lg border border-purple-200 p-3 space-y-2">
+            <div className="text-xs font-semibold text-purple-700 uppercase">Gerar parcelas iguais</div>
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="flex-1 min-w-28">
+                <div className="text-xs text-slate-400 mb-0.5">Valor de cada parcela (R$)</div>
+                <NumInput value={valorParcela} onChange={setValorParcela} />
+              </div>
+              <div className="flex-1 min-w-28">
+                <div className="text-xs text-slate-400 mb-0.5">1º vencimento</div>
+                <input className="input" type="date" value={primeiroVencimento} onChange={e => setPrimeiroVencimento(e.target.value)} />
+              </div>
+              <div className="flex gap-1.5">
+                {[12, 24, 36].map(n => (
+                  <button key={n} type="button" onClick={() => gerarParcelas(n)} disabled={!valorParcela || !primeiroVencimento}
+                    className="px-3 py-2 rounded-lg border text-sm font-medium border-purple-300 text-purple-700 bg-white hover:bg-purple-100 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white">
+                    {n}x
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="text-xs text-slate-400">Cria os boletos automaticamente, todos com o mesmo valor e vencimento mensal a partir da 1ª data.</div>
+          </div>
+
+          {(venda.boletos || []).length === 0 && <div className="text-xs text-slate-400">Clique em "Adicionar boleto avulso" ou gere parcelas iguais acima.</div>}
           {(venda.boletos || []).map(b => (
             <div key={b.id} className="flex items-center gap-3 flex-wrap">
               <div className="flex-1 min-w-24">
